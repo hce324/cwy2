@@ -256,6 +256,35 @@ function statusBadgeClass(status: '启用' | '停用'): string {
 }
 
 // ============================================================================
+// Stat Card
+// ============================================================================
+
+function SubjectStatCard({
+  title,
+  value,
+  tone = 'default',
+}: {
+  title: string;
+  value: number;
+  tone?: 'default' | 'danger';
+}) {
+  return (
+    <Card className="elevation-1">
+      <CardContent className="p-4">
+        <p className="text-sm text-muted-foreground">{title}</p>
+        <p
+          className={`mt-1 text-2xl font-heading font-bold tabular-nums ${
+            tone === 'danger' ? 'text-destructive' : 'text-foreground'
+          }`}
+        >
+          {value}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================================
 // Recursive Tree Row
 // ============================================================================
 
@@ -393,15 +422,22 @@ export function SubjectsView() {
     });
   }, [activeCategory, searchQuery]);
 
+  const subjectStats = [
+    { title: '一级科目', value: 67 },
+    { title: '明细科目', value: 238 },
+    { title: '本期已使用', value: 126 },
+    { title: '已停用', value: 4, tone: 'danger' as const },
+  ];
+
   return (
     <div className="p-6 space-y-6">
       {/* ========== Page Header ========== */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-foreground">
+          <h1 className="page-title">
             会计科目表
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="page-subtitle">
             依据《企业会计准则》通用科目框架维护企业明细科目；新增、修改与停用均保留变更记录。
           </p>
         </div>
@@ -429,6 +465,13 @@ export function SubjectsView() {
       </div>
 
       <Separator />
+
+      {/* ========== Subject Stats ========== */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {subjectStats.map((s) => (
+          <SubjectStatCard key={s.title} title={s.title} value={s.value} tone={s.tone} />
+        ))}
+      </div>
 
       {/* ========== Toolbar: Category Tabs + Search ========== */}
       <div className="flex items-center gap-3">

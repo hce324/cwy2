@@ -12,8 +12,8 @@ export function AccountingCheckView() {
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-foreground">凭证与期间控制</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="page-title">凭证与期间控制</h1>
+          <p className="page-subtitle">
             基础控制：借贷平衡、凭证号唯一、会计期间开放状态...
           </p>
         </div>

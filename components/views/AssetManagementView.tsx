@@ -19,8 +19,8 @@ export function AssetManagementView() {
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-foreground">固定资产管理</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="page-title">固定资产管理</h1>
+          <p className="page-subtitle">
             维护固定资产卡片、折旧与变动记录；折旧计提与处置统一生成凭证草稿。
           </p>
         </div>

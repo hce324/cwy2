@@ -290,13 +290,13 @@ export function BudgetView() {
       {/* ========== Page Header ========== */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold font-heading text-foreground tracking-tight">
+          <h1 className="page-title">
             预算与费用{' '}
             <span className="text-sm font-normal text-muted-foreground font-sans">
               · 预算执行分析
             </span>
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="page-subtitle">
             追踪部门预算的使用、占用与异常变化。
           </p>
         </div>

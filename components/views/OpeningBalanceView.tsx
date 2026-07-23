@@ -81,8 +81,8 @@ export function OpeningBalanceView() {
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-foreground">期初余额录入</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="page-title">期初余额录入</h1>
+          <p className="page-subtitle">
             按已启用会计科目录入期初余额；保存后自动校验借贷平衡，并提交财务负责人复核。
           </p>
         </div>

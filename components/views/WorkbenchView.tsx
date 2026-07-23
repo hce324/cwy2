@@ -40,7 +40,7 @@ export function WorkbenchView() {
     <div className="p-6 space-y-6">
       {/* Page title — consistent across all roles */}
       <div>
-        <h1 className="text-2xl font-heading font-bold text-foreground">
+        <h1 className="page-title">
           我的工作台
         </h1>
       </div>

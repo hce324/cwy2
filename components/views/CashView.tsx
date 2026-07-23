@@ -31,6 +31,8 @@ import {
   BarChart,
   Bar,
   Legend,
+  Cell,
+  LabelList,
 } from 'recharts';
 
 // ============================================================
@@ -53,7 +55,10 @@ const CASH_FLOW_STRUCTURE = [
   { month: '4月', 经营: 428, 投资: 116, 筹资: 62 },
   { month: '5月', 经营: 406, 投资: 132, 筹资: 58 },
   { month: '6月', 经营: 444, 投资: 108, 筹资: 72 },
-];
+].map((row) => ({
+  ...row,
+  total: row.经营 + row.投资 + row.筹资,
+}));
 
 const BANK_ACCOUNTS = [
   {
@@ -113,6 +118,123 @@ function amountColor(type: 'inflow' | 'outflow' | 'deficit'): string {
     case 'deficit':
       return 'text-destructive';
   }
+}
+
+// ============================================================
+// Cash Flow Tooltip — Material styled detailed tooltip
+// ============================================================
+
+interface CashFlowTooltipPayloadItem {
+  name: string;
+  value: number;
+  color: string;
+  dataKey: string;
+}
+
+function CashFlowTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: CashFlowTooltipPayloadItem[];
+  label?: string;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  // 还原为经营 / 投资 / 筹资的固定顺序
+  const order = ['经营', '投资', '筹资'];
+  const ordered = order
+    .map((k) => payload.find((p) => p.dataKey === k))
+    .filter((p): p is CashFlowTooltipPayloadItem => Boolean(p));
+  const total = ordered.reduce((sum, p) => sum + p.value, 0);
+
+  const labelMap: Record<string, { color: string; dot: string }> = {
+    经营: { color: 'var(--chart-1)', dot: 'bg-[--chart-1]' },
+    投资: { color: 'var(--chart-3)', dot: 'bg-[--chart-3]' },
+    筹资: { color: 'var(--chart-4)', dot: 'bg-[--chart-4]' },
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-popover text-popover-foreground shadow-lg elevation-3 px-3.5 py-3 min-w-[200px]">
+      <div className="flex items-center justify-between pb-2 mb-2 border-b border-border/60">
+        <span className="text-xs font-semibold text-foreground font-heading">
+          {label}
+        </span>
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          现金流结构
+        </span>
+      </div>
+      <div className="space-y-1.5">
+        {ordered.map((p) => {
+          const meta = labelMap[p.dataKey];
+          const percent = total > 0 ? (p.value / total) * 100 : 0;
+          return (
+            <div
+              key={p.dataKey}
+              className="flex items-center justify-between gap-3 text-xs"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span
+                  className={`inline-block w-2 h-2 rounded-full ${meta.dot}`}
+                  aria-hidden
+                />
+                <span className="text-muted-foreground">{p.dataKey}</span>
+              </div>
+              <div className="flex items-baseline gap-2 tabular-nums">
+                <span className="font-semibold text-foreground">
+                  ¥{p.value}
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {percent.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center justify-between pt-2 mt-2 border-t border-border/60">
+        <span className="text-xs text-muted-foreground">月度合计</span>
+        <span className="text-sm font-bold text-foreground font-heading tabular-nums">
+          ¥{total}万
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Cash Flow Legend — Material styled interactive legend
+// ============================================================
+
+const CASH_FLOW_LEGEND = [
+  { key: '经营', label: '经营活动', color: 'var(--chart-1)', desc: '主营业务' },
+  { key: '投资', label: '投资活动', color: 'var(--chart-3)', desc: '资产配置' },
+  { key: '筹资', label: '筹资活动', color: 'var(--chart-4)', desc: '融资借款' },
+];
+
+function CashFlowLegend() {
+  return (
+    <div className="flex items-center justify-center gap-1.5 pt-2">
+      {CASH_FLOW_LEGEND.map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          className="group flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--ring] focus-visible:ring-offset-1"
+          title={item.desc}
+        >
+          <span
+            className="inline-block w-2.5 h-2.5 rounded-sm transition-transform group-hover:scale-110"
+            style={{ backgroundColor: item.color }}
+            aria-hidden
+          />
+          <span className="text-xs font-medium text-foreground">
+            {item.label}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
 }
 
 // ============================================================
@@ -186,10 +308,10 @@ export function CashView() {
         {/* ================================================================ */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="space-y-1 min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground font-heading">
+            <h1 className="page-title">
               资金管理 — 资金账户与预测
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="page-subtitle">
               统一查看账户余额、资金流动与近期资金缺口。
             </p>
           </div>
@@ -382,7 +504,7 @@ export function CashView() {
 
           {/* Cash Flow Structure Chart */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-1">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Zap className="h-4 w-4 text-primary" />
                 现金流结构分析
@@ -391,40 +513,156 @@ export function CashView() {
                 经营 / 投资 / 筹资活动现金流（单位：万元）
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="h-[220px] w-full">
+            <CardContent className="pt-2">
+              <div className="h-[260px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={CASH_FLOW_STRUCTURE} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <BarChart
+                    data={CASH_FLOW_STRUCTURE}
+                    margin={{ top: 24, right: 12, left: 0, bottom: 0 }}
+                    barCategoryGap="32%"
+                  >
+                    <defs>
+                      {/* 经营 — 主色实心 */}
+                      <linearGradient
+                        id="cashFlow-operating"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={1} />
+                        <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.92} />
+                      </linearGradient>
+                      {/* 投资 — 成功色（绿）实心 */}
+                      <linearGradient
+                        id="cashFlow-investing"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop offset="0%" stopColor="var(--chart-3)" stopOpacity={1} />
+                        <stop offset="100%" stopColor="var(--chart-3)" stopOpacity={0.92} />
+                      </linearGradient>
+                      {/* 筹资 — 警告色（橙）实心 */}
+                      <linearGradient
+                        id="cashFlow-financing"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop offset="0%" stopColor="var(--chart-4)" stopOpacity={1} />
+                        <stop offset="100%" stopColor="var(--chart-4)" stopOpacity={0.92} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="var(--border)"
+                      vertical={false}
+                      strokeOpacity={0.6}
+                    />
                     <XAxis
                       dataKey="month"
-                      axisLine={false}
+                      axisLine={{ stroke: 'var(--border)' }}
                       tickLine={false}
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                      tick={{
+                        fontSize: 11,
+                        fill: 'var(--muted-foreground)',
+                      }}
+                      dy={4}
                     />
                     <YAxis
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+                      tickFormatter={(v) => `${v}`}
                     />
                     <Tooltip
-                      contentStyle={{
-                        borderRadius: '8px',
-                        border: '1px solid hsl(var(--border))',
-                        backgroundColor: 'hsl(var(--background))',
-                        fontSize: '12px',
-                      }}
-                      formatter={(value: any) => [`¥${value}万`]}
+                      content={<CashFlowTooltip />}
+                      cursor={{ fill: 'var(--muted)', fillOpacity: 0.4 }}
                     />
-                    <Legend
-                      wrapperStyle={{ fontSize: '11px' }}
-                    />
-                    <Bar dataKey="经营" stackId="cash" fill="var(--primary)" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="投资" stackId="cash" fill="var(--secondary)" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="筹资" stackId="cash" fill="var(--warning)" radius={[0, 0, 4, 4]} />
+                    {/* 经营（底）—— 仅顶部圆角 */}
+                    <Bar
+                      dataKey="经营"
+                      stackId="cash"
+                      fill="url(#cashFlow-operating)"
+                      radius={[0, 0, 0, 0]}
+                      maxBarSize={48}
+                      animationDuration={800}
+                      animationEasing="ease-out"
+                    >
+                      <LabelList
+                        dataKey="经营"
+                        position="center"
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          fill: 'var(--primary-foreground)',
+                        }}
+                        formatter={(v: any) => (Number(v) >= 90 ? v : '')}
+                      />
+                    </Bar>
+                    {/* 投资（中）—— 无圆角 */}
+                    <Bar
+                      dataKey="投资"
+                      stackId="cash"
+                      fill="url(#cashFlow-investing)"
+                      radius={[0, 0, 0, 0]}
+                      maxBarSize={48}
+                      animationDuration={800}
+                      animationEasing="ease-out"
+                      animationBegin={150}
+                    >
+                      <LabelList
+                        dataKey="投资"
+                        position="center"
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          fill: '#FFFFFF',
+                        }}
+                        formatter={(v: any) => (Number(v) >= 50 ? v : '')}
+                      />
+                    </Bar>
+                    {/* 筹资（顶）—— 仅顶部圆角 */}
+                    <Bar
+                      dataKey="筹资"
+                      stackId="cash"
+                      fill="url(#cashFlow-financing)"
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={48}
+                      animationDuration={800}
+                      animationEasing="ease-out"
+                      animationBegin={300}
+                    >
+                      <LabelList
+                        dataKey="筹资"
+                        position="center"
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          fill: '#FFFFFF',
+                        }}
+                        formatter={(v: any) => (Number(v) >= 50 ? v : '')}
+                      />
+                      {/* 月度合计标签 —— 柱顶 */}
+                      <LabelList
+                        dataKey="total"
+                        position="top"
+                        offset={8}
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          fill: 'var(--foreground)',
+                        }}
+                        formatter={(v: any) => `${v}`}
+                      />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+              <CashFlowLegend />
             </CardContent>
           </Card>
         </div>

@@ -83,10 +83,10 @@ export function ImportView() {
       {/* ========== Page Header ========== */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-foreground">
+          <h1 className="page-title">
             数据管理 — 数据导入中心
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="page-subtitle">
             通过标准模板归集数据，保障数据一致性与完整性。
           </p>
         </div>

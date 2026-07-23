@@ -27,8 +27,8 @@ export function VoucherView() {
       <div className="flex items-start justify-between">
         <div>
           <div className="text-xs text-muted-foreground uppercase tracking-wider">VOUCHER PREPARATION</div>
-          <h1 className="text-2xl font-heading font-bold text-foreground mt-1">凭证填制</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="page-title mt-1">凭证填制</h1>
+          <p className="page-subtitle">
             AI先形成全部凭证信息；会计专员查看、修改并确认后，才生成正式凭证编号。
           </p>
         </div>

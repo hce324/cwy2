@@ -88,8 +88,8 @@ export function SourceVoucherView() {
       <div className="flex items-start justify-between">
         <div>
           <div className="text-xs text-muted-foreground uppercase tracking-wider">SOURCE VOUCHERS</div>
-          <h1 className="text-2xl font-heading font-bold text-foreground mt-1">原始凭证</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="page-title mt-1">原始凭证</h1>
+          <p className="page-subtitle">
             查看原始凭证及附件证据，重点复核异常、大额和高风险业务，不代替会计专员日常制证。
           </p>
         </div>

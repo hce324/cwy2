@@ -51,8 +51,8 @@ export function RiskView() {
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-foreground">风险与异常 — 财务与经营风险处理中心</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="page-title">风险与异常 — 财务与经营风险处理中心</h1>
+          <p className="page-subtitle">
             统一处理财务、产销、直播ROI、SKU和供应链异常，形成分派、处理与复核闭环。
           </p>
         </div>

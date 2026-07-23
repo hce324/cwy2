@@ -149,10 +149,10 @@ export function CashManagementView() {
           <div className="text-xs text-muted-foreground uppercase tracking-wider">
             CASH & PAYMENT OPERATIONS
           </div>
-          <h1 className="text-2xl font-heading font-bold text-foreground mt-1">
+          <h1 className="page-title mt-1">
             资金收付
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="page-subtitle">
             监管大额及异常资金支付授权、查看付款证据和审计轨迹；会计主管不代替出纳执行网银付款。
           </p>
         </div>

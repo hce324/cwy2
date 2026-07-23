@@ -140,8 +140,8 @@ export function BalanceView() {
       <div className="flex items-start justify-between">
         <div>
           <div className="text-xs text-muted-foreground uppercase tracking-wider">TRIAL BALANCE</div>
-          <h1 className="text-2xl font-heading font-bold text-foreground mt-1">科目余额表</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="page-title mt-1">科目余额表</h1>
+          <p className="page-subtitle">
             由已记账凭证实时汇总，支持逐级展开并联查明细账。
           </p>
         </div>

@@ -26,7 +26,6 @@ import {
   Pie,
   Cell,
   Tooltip as RechartsTooltip,
-  Legend,
   ResponsiveContainer,
 } from 'recharts';
 import {
@@ -89,6 +88,8 @@ const agingData = [
   { name: '31-60天', value: 55.10, color: 'var(--chart-5)' },
   { name: '60天以上', value: 82.64, color: 'var(--destructive)' },
 ];
+
+const agingTotal = agingData.reduce((s, d) => s + d.value, 0);
 
 const flowSteps = [
   { label: '提交申请', icon: FileText },
@@ -544,13 +545,13 @@ export function PayableView() {
       {/* ========== Page Header ========== */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold font-heading text-foreground tracking-tight">
+          <h1 className="page-title">
             应付与付款{' '}
             <span className="text-sm font-normal text-muted-foreground font-sans">
               · 付款申请与审批
             </span>
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="page-subtitle">
             在付款前完成合同、发票、预算和重复付款检查
           </p>
         </div>
@@ -687,57 +688,95 @@ export function PayableView() {
           <CardDescription>按账龄区间拆分应付余额结构</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                <Pie
-                  data={agingData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={72}
-                  outerRadius={110}
-                  paddingAngle={2}
-                  dataKey="value"
-                  nameKey="name"
-                  stroke="none"
-                >
-                  {agingData.map((entry, idx) => (
-                    <Cell key={idx} fill={entry.color} />
-                  ))}
-                </Pie>
-                <RechartsTooltip content={<AgingTooltip />} />
-                <Legend
-                  verticalAlign="bottom"
-                  iconType="circle"
-                  iconSize={8}
-                  wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
-                  formatter={(value: string) => (
-                    <span className="text-xs text-muted-foreground">{value}</span>
-                  )}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            {/* Legend detail */}
-            <div className="space-y-2 flex flex-col justify-center">
-              {agingData.map((d) => {
-                const total = agingData.reduce((s, item) => s + item.value, 0);
-                const pct = ((d.value / total) * 100).toFixed(0);
-                return (
-                  <div key={d.name} className="flex items-center gap-3">
-                    <span
-                      className="h-3 w-3 rounded-full shrink-0"
-                      style={{ backgroundColor: d.color }}
-                    />
-                    <span className="text-sm text-muted-foreground flex-1">{d.name}</span>
-                    <span className="text-sm font-semibold text-foreground tabular-nums">
-                      {fmtWan(d.value)}
-                    </span>
-                    <span className="text-sm text-muted-foreground tabular-nums w-10 text-right">
-                      {pct}%
-                    </span>
-                  </div>
-                );
-              })}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-center">
+            <div className="lg:col-span-3">
+              <ResponsiveContainer width="100%" height={320}>
+                <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                  <Pie
+                    data={agingData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={78}
+                    outerRadius={120}
+                    paddingAngle={2}
+                    dataKey="value"
+                    nameKey="name"
+                    stroke="none"
+                  >
+                    {agingData.map((entry, idx) => (
+                      <Cell key={idx} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip content={<AgingTooltip />} />
+                  <circle
+                    cx="50%"
+                    cy="50%"
+                    r={78}
+                    fill="var(--muted)"
+                    fillOpacity={0.25}
+                  />
+                  <text
+                    x="50%"
+                    y="45%"
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="var(--muted-foreground)"
+                    fontSize={12}
+                  >
+                    应付总额
+                  </text>
+                  <text
+                    x="50%"
+                    y="55%"
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="var(--foreground)"
+                    fontSize={18}
+                    fontWeight={700}
+                  >
+                    {fmtWan(agingTotal)}
+                  </text>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Aging breakdown */}
+            <div className="lg:col-span-2 flex flex-col justify-center gap-4">
+              <p className="text-sm font-semibold text-foreground">账龄明细</p>
+              <div className="space-y-4">
+                {agingData.map((d) => {
+                  const pct = (d.value / agingTotal) * 100;
+                  return (
+                    <div key={d.name} className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className="h-3 w-3 rounded-full shrink-0"
+                            style={{ backgroundColor: d.color }}
+                          />
+                          <span className="text-sm font-medium text-foreground truncate">
+                            {d.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-sm font-bold text-foreground tabular-nums">
+                            {fmtWan(d.value)}
+                          </span>
+                          <span className="text-xs font-semibold text-muted-foreground tabular-nums w-9 text-right">
+                            {pct.toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${pct}%`, backgroundColor: d.color }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </CardContent>

@@ -155,8 +155,8 @@ export function InventoryManagementView() {
       {/* ================================================================ */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-foreground">库存管理</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="page-title">库存管理</h1>
+          <p className="page-subtitle">
             记录入库、出库、调拨与盘点；实时查询收发存汇总与安全库存预警。
           </p>
         </div>

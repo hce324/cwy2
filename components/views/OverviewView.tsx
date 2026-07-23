@@ -8,6 +8,15 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import {
+  revenueTrend,
+  profitTrend,
+  marginTrend,
+  cashFlowTrend,
+  overdueRatio,
+  fundCoverage,
+} from '@/lib/kpi-mock';
 import {
   Tooltip,
   TooltipContent,
@@ -17,6 +26,7 @@ import {
   BarChart,
   Bar,
   Line,
+  LineChart,
   AreaChart,
   Area,
   XAxis,
@@ -212,7 +222,87 @@ function CashTooltip({ active, payload, label }: any) {
 }
 
 // ============================================================================
-// Stat Card — with variant support
+// ============================================================================
+// KPI Trend — inline sparkline (ComposedChart-driven, no new component file)
+// Supports area / line / bar kinds; all tokens, no gradients (fillOpacity only).
+// ============================================================================
+
+type TrendSeries = {
+  key: string;
+  color: string;
+  kind: 'area' | 'line' | 'bar';
+  dashed?: boolean;
+};
+
+function KpiTrend({
+  data,
+  series,
+  height = 48,
+  label,
+}: {
+  data: any[];
+  series: TrendSeries[];
+  height?: number;
+  label?: string;
+}) {
+  const useBar = series.some((s) => s.kind === 'bar');
+  const useArea = series.some((s) => s.kind === 'area');
+  const Chart = useBar ? BarChart : useArea ? AreaChart : LineChart;
+
+  return (
+    <div role="img" aria-label={label ?? '趋势迷你图'} className="mt-3 -mb-1">
+      <ResponsiveContainer width="100%" height={height}>
+        <Chart data={data} margin={{ top: 6, right: 2, left: 2, bottom: 0 }}>
+          {series.map((s) => {
+            if (s.kind === 'area') {
+              return (
+                <Area
+                  key={s.key}
+                  type="monotone"
+                  dataKey={s.key}
+                  stroke={s.color}
+                  strokeWidth={2}
+                  fill={s.color}
+                  fillOpacity={0.12}
+                  dot={false}
+                  strokeDasharray={s.dashed ? '4 3' : undefined}
+                  isAnimationActive={false}
+                />
+              );
+            }
+            if (s.kind === 'bar') {
+              return (
+                <Bar
+                  key={s.key}
+                  dataKey={s.key}
+                  fill={s.color}
+                  radius={[2, 2, 0, 0]}
+                  barSize={5}
+                  isAnimationActive={false}
+                />
+              );
+            }
+            return (
+              <Line
+                key={s.key}
+                type="monotone"
+                dataKey={s.key}
+                stroke={s.color}
+                strokeWidth={2}
+                dot={false}
+                strokeDasharray={s.dashed ? '4 3' : undefined}
+                isAnimationActive={false}
+              />
+            );
+          })}
+        </Chart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ============================================================================
+// Stat Card — with variant support + inline trend / progress
 // ============================================================================
 
 function StatCard({
@@ -221,12 +311,16 @@ function StatCard({
   sub,
   tone = 'neutral',
   variant = 'default',
+  trend,
+  progress,
 }: {
   title: string;
   value: string;
   sub: string;
   tone?: 'up' | 'down' | 'warning' | 'danger' | 'neutral';
   variant?: 'default' | 'primary' | 'danger';
+  trend?: { data: any[]; series: TrendSeries[]; label?: string };
+  progress?: { value: number; color: 'danger' | 'warning' };
 }) {
   const toneStyles: Record<string, string> = {
     up: 'text-success',
@@ -250,38 +344,29 @@ function StatCard({
             <AlertTriangle className="h-3 w-3" />
             {sub}
           </p>
+          {progress && (
+            <Progress
+              value={progress.value}
+              className={`mt-3 [&_[data-slot=progress-indicator]]:!bg-${progress.color} [&_[data-slot=progress-track]]:!h-2`}
+            />
+          )}
         </CardContent>
       </Card>
     );
   }
 
-  if (variant === 'primary') {
-    return (
-      <Card className="elevation-1 card-hover border-l-[3px] border-l-[--primary] bg-accent/20">
-        <CardHeader className="pb-1">
-          <CardDescription>{title}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-[1.75rem] font-bold font-heading text-foreground tracking-tight tabular-nums leading-tight">
-            {value}
-          </p>
-          <p className={`text-xs mt-0.5 ${toneStyles[tone]}`}>{sub}</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // default variant — slightly subdued
+  const isPrimary = variant === 'primary';
   return (
-    <Card className="elevation-1 card-hover">
+    <Card className={`elevation-1 card-hover ${isPrimary ? 'border-l-[3px] border-l-[--primary] bg-accent/20' : ''}`}>
       <CardHeader className="pb-1">
-        <CardDescription className="text-xs">{title}</CardDescription>
+        <CardDescription className={!isPrimary ? 'text-xs' : ''}>{title}</CardDescription>
       </CardHeader>
       <CardContent>
-        <p className="text-lg font-bold font-heading text-foreground tracking-tight tabular-nums">
+        <p className={`${isPrimary ? 'text-[1.75rem]' : 'text-lg'} font-bold font-heading text-foreground tracking-tight tabular-nums leading-tight`}>
           {value}
         </p>
-        <p className={`text-[11px] mt-0.5 ${toneStyles[tone]}`}>{sub}</p>
+        <p className={`mt-0.5 ${!isPrimary ? 'text-[11px]' : 'text-xs'} ${toneStyles[tone]}`}>{sub}</p>
+        {trend && <KpiTrend data={trend.data} series={trend.series} label={trend.label} />}
       </CardContent>
     </Card>
   );
@@ -352,7 +437,7 @@ export function OverviewView() {
     <div className="p-6 space-y-6">
       {/* ========== Page Header ========== */}
       <div>
-        <h1 className="text-2xl font-bold font-heading text-foreground tracking-tight">
+        <h1 className="page-title">
           经营驾驶舱
           <Tooltip>
             <TooltipTrigger>
@@ -363,7 +448,7 @@ export function OverviewView() {
             </TooltipContent>
           </Tooltip>
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="page-subtitle">
           口径：确认收入 · 数据截至 2026-07-13 10:30
         </p>
       </div>
@@ -389,6 +474,14 @@ export function OverviewView() {
           sub="+8.6% 同比"
           tone="up"
           variant="primary"
+          trend={{
+            data: revenueTrend,
+            series: [
+              { key: 'value', color: 'var(--chart-1)', kind: 'area' },
+              { key: 'yoy', color: 'var(--muted-foreground)', kind: 'line', dashed: true },
+            ],
+            label: '确认收入近12个月趋势，含同比',
+          }}
         />
         <StatCard
           title="净利润"
@@ -396,18 +489,42 @@ export function OverviewView() {
           sub="+12.4% 同比"
           tone="up"
           variant="primary"
+          trend={{
+            data: profitTrend,
+            series: [
+              { key: 'value', color: 'var(--chart-1)', kind: 'area' },
+              { key: 'yoy', color: 'var(--muted-foreground)', kind: 'line', dashed: true },
+            ],
+            label: '净利润近12个月趋势，含同比',
+          }}
         />
         <StatCard
           title="净利率"
           value="16.9%"
           sub="+0.6pp"
           tone="up"
+          trend={{
+            data: marginTrend,
+            series: [
+              { key: 'net', color: 'var(--chart-3)', kind: 'line' },
+              { key: 'gross', color: 'var(--chart-4)', kind: 'line' },
+            ],
+            label: '净利率与毛利率对比',
+          }}
         />
         <StatCard
           title="毛利率"
           value="40.0%"
           sub="-1.8pp"
           tone="down"
+          trend={{
+            data: marginTrend,
+            series: [
+              { key: 'gross', color: 'var(--chart-4)', kind: 'line' },
+              { key: 'bench', color: 'var(--muted-foreground)', kind: 'line', dashed: true },
+            ],
+            label: '毛利率与基准线对比',
+          }}
         />
 
         {/* Row 2: Secondary + Risk cards */}
@@ -416,12 +533,22 @@ export function OverviewView() {
           value="¥54.36万"
           sub="+18.4% 同比"
           tone="up"
+          trend={{
+            data: cashFlowTrend,
+            series: [{ key: 'value', color: 'var(--chart-3)', kind: 'bar' }],
+            label: '近6个月经营现金流',
+          }}
         />
         <StatCard
           title="可用现金余额"
           value="¥842.66万"
           sub="+3.2%"
           tone="up"
+          trend={{
+            data: cashPredictionDays,
+            series: [{ key: 'balance', color: 'var(--chart-1)', kind: 'area' }],
+            label: '现金余额及30天预测',
+          }}
         />
         <StatCard
           title="逾期应收"
@@ -429,6 +556,7 @@ export function OverviewView() {
           sub="42.0% 占应收"
           tone="danger"
           variant="danger"
+          progress={{ value: overdueRatio, color: 'danger' }}
         />
         <StatCard
           title="未来30天资金预测"
@@ -436,6 +564,7 @@ export function OverviewView() {
           sub="中风险"
           tone="warning"
           variant="danger"
+          progress={{ value: fundCoverage, color: 'warning' }}
         />
       </div>
 

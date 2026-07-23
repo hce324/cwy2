@@ -418,13 +418,13 @@ export function ReceivableView() {
       {/* ========== Page Header ========== */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold font-heading text-foreground tracking-tight">
+          <h1 className="page-title">
             应收管理{' '}
             <span className="text-sm font-normal text-muted-foreground font-sans">
               · 客户应收与催收
             </span>
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="page-subtitle">
             关注回款进度、账龄结构与逾期催收闭环
           </p>
         </div>

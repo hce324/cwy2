@@ -21,8 +21,8 @@ export function BankReconView() {
       <div className="flex items-start justify-between">
         <div>
           <div className="text-xs text-muted-foreground uppercase tracking-wider">BANK RECONCILIATION</div>
-          <h1 className="text-2xl font-heading font-bold text-foreground mt-1">银行对账</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="page-title mt-1">银行对账</h1>
+          <p className="page-subtitle">
             复核未达账项处理、长期未达控制及银行存款余额调节表。
           </p>
         </div>

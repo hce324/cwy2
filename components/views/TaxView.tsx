@@ -14,8 +14,8 @@ export function TaxView() {
       <div className="flex items-start justify-between">
         <div>
           <div className="text-xs text-muted-foreground uppercase tracking-wider">TAX FILING</div>
-          <h1 className="text-2xl font-heading font-bold text-foreground mt-1">纳税申报</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="page-title mt-1">纳税申报</h1>
+          <p className="page-subtitle">
             复核申报表、税会差异与勾稽关系，确认后由授权人员提交。
           </p>
         </div>

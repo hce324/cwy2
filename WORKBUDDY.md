@@ -170,7 +170,7 @@ Next.js `next/font/google` 加载 → CSS 变量 → Tailwind `@theme` 映射：
 字号：`text-xs`(12) / `text-sm`(14) / `text-base`(16) / `text-lg`(20) / `text-xl`(24) / `text-2xl`(32)
 字重：100–900，`font-thin` ~ `font-black`
 
-页面主标题：`<h1 className="text-2xl font-heading font-bold">`
+页面主标题：使用全局工具类 `<h1 className="page-title">`（定义见 `app/globals.css`，统一 24px / 700 / Roboto(heading) / tracking-tight / foreground，左对齐）。副标题用 `<p className="page-subtitle">`（14px / 400 / muted-foreground，标题下 4px 间距）。标题上方若有 eyebrow/kicker 标签，在标题类后追加 `mt-1` 与其保持 4px 间距；无 kicker 时标题顶部不留 margin。所有视图的标题块必须复用这两个类，禁止在各文件内联拼写 `text-2xl font-heading font-bold …`。
 
 ---
 
@@ -227,6 +227,8 @@ Card hover：`.card-hover` → 上浮 1px + 阴影增强
 | `.elevation-1` ~ `.elevation-4` | Material 阴影层级 |
 | `.card-hover` | 卡片 hover 上浮 |
 | `.custom-scrollbar` | 6px 细滚动条 |
+| `.page-title` | 页面主标题统一规范（24px / 700 / Roboto / tracking-tight / foreground，左对齐） |
+| `.page-subtitle` | 页面副标题统一规范（14px / 400 / muted-foreground，标题下 4px） |
 | `.tabular-nums` | 等宽数字（财务报表必备） |
 | `.kpi-card--danger` | 风险 KPI 卡片样式 |
 | `.skip-link` | 无障碍跳转链接 |

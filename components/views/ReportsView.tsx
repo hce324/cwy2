@@ -6,19 +6,21 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { useState } from 'react';
 import { FileText, CheckCircle2, Download, Brain, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function ReportsView() {
+  const [activeReport, setActiveReport] = useState('bs');
+
   return (
     <div className="p-6 space-y-6">
       {/* ========== Page Header ========== */}
       <div className="flex items-start justify-between">
         <div>
           <div className="text-xs text-muted-foreground uppercase tracking-wider">FINANCIAL STATEMENTS</div>
-          <h1 className="text-2xl font-heading font-bold text-foreground mt-1">报表管理</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="page-title mt-1">报表管理</h1>
+          <p className="page-subtitle">
             依据科目余额和报表公式生成财务报表与管理报表。
           </p>
         </div>
@@ -48,16 +50,42 @@ export function ReportsView() {
         <div>
           <p className="text-xs text-muted-foreground mb-2 font-medium">财务报表</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {['资产负债表', '利润表', '现金流量表', '所有者权益变动表'].map(r => (
-              <Button key={r} variant="outline" size="sm" className="h-9 text-sm">{r}</Button>
+            {[
+              { id: 'bs', name: '资产负债表' },
+              { id: 'pl', name: '利润表' },
+              { id: 'cf', name: '现金流量表' },
+              { id: 'oe', name: '所有者权益变动表' },
+            ].map(r => (
+              <Button
+                key={r.id}
+                variant={activeReport === r.id ? 'default' : 'outline'}
+                size="sm"
+                className="h-9 text-sm"
+                onClick={() => setActiveReport(r.id)}
+              >
+                {r.name}
+              </Button>
             ))}
           </div>
         </div>
         <div>
           <p className="text-xs text-muted-foreground mb-2 font-medium">管理报表</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {['部门损益表', '产品线利润表', '费用明细表', '预算执行表'].map(r => (
-              <Button key={r} variant="outline" size="sm" className="h-9 text-sm">{r}</Button>
+            {[
+              { id: 'dept', name: '部门损益表' },
+              { id: 'prod', name: '产品线利润表' },
+              { id: 'expense', name: '费用明细表' },
+              { id: 'budget', name: '预算执行表' },
+            ].map(r => (
+              <Button
+                key={r.id}
+                variant={activeReport === r.id ? 'default' : 'outline'}
+                size="sm"
+                className="h-9 text-sm"
+                onClick={() => setActiveReport(r.id)}
+              >
+                {r.name}
+              </Button>
             ))}
           </div>
         </div>
@@ -70,12 +98,10 @@ export function ReportsView() {
       </div>
 
       {/* ========== Reports Accordion ========== */}
-      <Accordion multiple defaultValue={['bs', 'pl']}>
+      <>
         {/* ---------- 资产负债表 ---------- */}
-        <AccordionItem value="bs">
-          <AccordionTrigger className="text-base font-semibold">资产负债表</AccordionTrigger>
-          <AccordionContent>
-            <Card className="elevation-1 mt-2">
+        {activeReport === 'bs' && (
+          <Card className="elevation-1 mt-2">
               <CardHeader className="pb-2">
                 <CardDescription className="text-xs">辅助单位：上海星芒　ZQ0　　企业1表　单位：元</CardDescription>
               </CardHeader>
@@ -334,14 +360,11 @@ export function ReportsView() {
                 <div className="text-[11px] text-muted-foreground mt-3">企业负责人：林主管 ｜ 财务负责人：周会计 ｜ 制表人：陈会计</div>
               </CardContent>
             </Card>
-          </AccordionContent>
-        </AccordionItem>
+        )}
 
         {/* ---------- 利润表 ---------- */}
-        <AccordionItem value="pl">
-          <AccordionTrigger className="text-base font-semibold">利润表</AccordionTrigger>
-          <AccordionContent>
-            <Card className="elevation-1 mt-2">
+        {activeReport === 'pl' && (
+          <Card className="elevation-1 mt-2">
               <CardHeader className="pb-2">
                 <CardDescription className="text-xs">编制单位：上海星芒电子商务有限公司　会企02表</CardDescription>
               </CardHeader>
@@ -415,14 +438,11 @@ export function ReportsView() {
                 <div className="text-[11px] text-muted-foreground mt-3">企业负责人：林王萱</div>
               </CardContent>
             </Card>
-          </AccordionContent>
-        </AccordionItem>
+        )}
 
         {/* ---------- 现金流量表 ---------- */}
-        <AccordionItem value="cf">
-          <AccordionTrigger className="text-base font-semibold">现金流量表</AccordionTrigger>
-          <AccordionContent>
-            <Card className="elevation-1 mt-2">
+        {activeReport === 'cf' && (
+          <Card className="elevation-1 mt-2">
               <CardHeader className="pb-2">
                 <CardDescription className="text-xs">编制单位：上海星芒电子商务　会企03表</CardDescription>
               </CardHeader>
@@ -515,14 +535,11 @@ export function ReportsView() {
                 </Table>
               </CardContent>
             </Card>
-          </AccordionContent>
-        </AccordionItem>
+        )}
 
         {/* ---------- 所有者权益变动表 ---------- */}
-        <AccordionItem value="oe">
-          <AccordionTrigger className="text-base font-semibold">所有者权益变动表</AccordionTrigger>
-          <AccordionContent>
-            <Card className="elevation-1 mt-2">
+        {activeReport === 'oe' && (
+          <Card className="elevation-1 mt-2">
               <CardHeader className="pb-2">
                 <CardDescription className="text-xs">编制单位：上海星芒电子商务有限公司　2026年7月</CardDescription>
               </CardHeader>
@@ -607,14 +624,11 @@ export function ReportsView() {
                 </Table>
               </CardContent>
             </Card>
-          </AccordionContent>
-        </AccordionItem>
+        )}
 
         {/* ---------- 部门损益表 ---------- */}
-        <AccordionItem value="dept">
-          <AccordionTrigger className="text-base font-semibold">部门损益表</AccordionTrigger>
-          <AccordionContent>
-            <Card className="elevation-1 mt-2">
+        {activeReport === 'dept' && (
+          <Card className="elevation-1 mt-2">
               <CardHeader className="pb-2">
                 <CardDescription className="text-xs">2026年7月　管理报表口径</CardDescription>
               </CardHeader>
@@ -654,14 +668,11 @@ export function ReportsView() {
                 </div>
               </CardContent>
             </Card>
-          </AccordionContent>
-        </AccordionItem>
+        )}
 
         {/* ---------- 产品线利润表 ---------- */}
-        <AccordionItem value="prod">
-          <AccordionTrigger className="text-base font-semibold">产品线利润表</AccordionTrigger>
-          <AccordionContent>
-            <Card className="elevation-1 mt-2">
+        {activeReport === 'prod' && (
+          <Card className="elevation-1 mt-2">
               <CardContent className="pt-4">
                 <Table>
                   <TableHeader>
@@ -704,14 +715,11 @@ export function ReportsView() {
                 </div>
               </CardContent>
             </Card>
-          </AccordionContent>
-        </AccordionItem>
+        )}
 
         {/* ---------- 费用明细表 ---------- */}
-        <AccordionItem value="expense">
-          <AccordionTrigger className="text-base font-semibold">费用明细表</AccordionTrigger>
-          <AccordionContent>
-            <Card className="elevation-1 mt-2">
+        {activeReport === 'expense' && (
+          <Card className="elevation-1 mt-2">
               <CardHeader className="pb-2">
                 <CardDescription className="text-xs">2026年7月　管理报表口径　单位：万元</CardDescription>
               </CardHeader>
@@ -770,14 +778,11 @@ export function ReportsView() {
                 </div>
               </CardContent>
             </Card>
-          </AccordionContent>
-        </AccordionItem>
+        )}
 
         {/* ---------- 预算执行表 ---------- */}
-        <AccordionItem value="budget">
-          <AccordionTrigger className="text-base font-semibold">预算执行表</AccordionTrigger>
-          <AccordionContent>
-            <Card className="elevation-1 mt-2">
+        {activeReport === 'budget' && (
+          <Card className="elevation-1 mt-2">
               <CardHeader className="pb-2">
                 <CardDescription className="text-xs">2026年7月　管理报表口径　单位：万元</CardDescription>
               </CardHeader>
@@ -842,9 +847,8 @@ export function ReportsView() {
                 </div>
               </CardContent>
             </Card>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+        )}
+      </>
 
       {/* ========== Balance Check Banner ========== */}
       <div className="flex items-center gap-2 bg-success/10 rounded-lg p-2 text-xs text-success">

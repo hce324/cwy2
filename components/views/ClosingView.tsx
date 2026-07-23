@@ -52,8 +52,8 @@ export function ClosingView() {
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-foreground">2026年7月月结</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="page-title">2026年7月月结</h1>
+          <p className="page-subtitle">
             通过标准任务清单协同完成月末检查、报表和复核。
           </p>
         </div>

@@ -40,8 +40,8 @@ export function BoundaryView() {
       <div className="flex items-start justify-between">
         <div>
           <div className="text-xs text-muted-foreground">验收重点 03 · 系统边界</div>
-          <h1 className="text-2xl font-heading font-bold text-foreground mt-1">Demo边界与驻场业务分析</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="page-title mt-1">Demo边界与驻场业务分析</h1>
+          <p className="page-subtitle">
             明确当前版本解决什么、暂不解决什么，以及真实落地时如何把未知问题逐步明晰。
           </p>
         </div>

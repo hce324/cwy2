@@ -84,10 +84,10 @@ export function BlueprintView() {
           <div className="text-xs text-muted-foreground tracking-wide">
             验收重点 01 · 用户与场景
           </div>
-          <h1 className="text-2xl font-heading font-bold text-foreground mt-1 tracking-tight">
+          <h1 className="page-title mt-1">
             角色、工作流程与系统承载
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="page-subtitle">
             明确谁在什么场景使用系统，以及看板和工作流如何支持其工作。
           </p>
         </div>

@@ -314,6 +314,34 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ============================================================
+   Page header — unified top-left title block (design spec)
+   Applied to every view's <h1> (page title) and its page
+   subtitle <p>. Tokens follow Material type scale + MD3.
+     • Title : 24px (text-2xl) · 700 · Roboto(heading) ·
+               foreground · tracking-tight · left-aligned
+     • Subtitle: 14px (text-sm) · 400 · muted-foreground ·
+               4px (gap-1) below title
+   No margin is set here so a view may still add `mt-1` (e.g.
+   to separate an eyebrow/kicker label above the title) without
+   being overridden by this unlayered rule.
+   ============================================================ */
+.page-title {
+  font-family: var(--font-heading), var(--font-sans);
+  font-size: 1.5rem;        /* text-2xl · 24px */
+  line-height: 2rem;
+  font-weight: 700;         /* font-bold */
+  color: var(--foreground);
+  letter-spacing: -0.025em; /* tracking-tight */
+}
+.page-subtitle {
+  margin-top: 0.25rem;      /* gap-1 · 4px */
+  font-size: 0.875rem;      /* text-sm · 14px */
+  line-height: 1.25rem;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+
 /* Danger card surface */
 .kpi-card--danger {
   border-left: 3px solid var(--danger);

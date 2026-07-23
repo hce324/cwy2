@@ -26,8 +26,8 @@ export function DataView() {
       <div className="flex items-start justify-between">
         <div>
           <div className="text-xs text-muted-foreground">验收重点 02 · 数据需求</div>
-          <h1 className="text-2xl font-heading font-bold text-foreground mt-1">指标、字段、来源与更新责任</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="page-title mt-1">指标、字段、来源与更新责任</h1>
+          <p className="page-subtitle">
             从页面指标反推数据字段和归集机制，形成后续接入的数据台账。
           </p>
         </div>

@@ -434,14 +434,14 @@ export function InventoryView() {
   const [tabValue, setTabValue] = useState('overview');
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="p-6 space-y-6">
       {/* ---- Header ---- */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold tracking-tight font-heading text-foreground">
+          <h1 className="page-title">
             产销管理 · 财务经营视角 — 产销经营总览
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="page-subtitle">
             打通销售、直播投放、SKU利润、采购供应与库存周转，实现从销售到供应链的经营闭环管理。
           </p>
         </div>
@@ -482,9 +482,9 @@ export function InventoryView() {
           </div>
 
           {/* ---- Charts Row ---- */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
             {/* Sales & Production Trend */}
-            <Card className="lg:col-span-2">
+            <Card className="lg:col-span-3">
               <CardHeader>
                 <CardTitle className="text-base font-heading">销售与排产趋势</CardTitle>
                 <CardDescription>单位：万元 · 近 8 个月趋势，* 为预估值</CardDescription>
@@ -528,7 +528,7 @@ export function InventoryView() {
             </Card>
 
             {/* Channel Pie */}
-            <Card>
+            <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle className="text-base font-heading">销售渠道结构</CardTitle>
                 <CardDescription>本月各渠道销售占比</CardDescription>
@@ -577,9 +577,9 @@ export function InventoryView() {
           </div>
 
           {/* ---- 经营关注 + 产销协同 Row ---- */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* 经营关注 */}
-            <Card className="lg:col-span-2">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-base font-heading flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-warning" />

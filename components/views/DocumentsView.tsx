@@ -73,10 +73,10 @@ export function DocumentsView() {
       {/* Page Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-foreground">
+          <h1 className="page-title">
             智能采集 <span className="text-xs text-muted-foreground font-sans font-normal uppercase tracking-wider">SMART CAPTURE</span>
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="page-subtitle">
             扫描原始单据，导入发票、平台账单、银行流水和业务附件。
           </p>
         </div>

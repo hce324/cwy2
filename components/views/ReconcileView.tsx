@@ -32,10 +32,10 @@ export function ReconcileView() {
           <div className="text-xs text-muted-foreground uppercase tracking-wider">
             PLATFORM RECONCILIATION
           </div>
-          <h1 className="text-2xl font-heading font-bold text-foreground mt-1">
+          <h1 className="page-title mt-1">
             平台结算对账
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="page-subtitle">
             平台账单由系统自动归集匹配，会计主管查看证据链、确认差异原因并下发待制证资料。
           </p>
         </div>

@@ -91,13 +91,13 @@ export function SettingsView() {
       {/* ========== Page Header ========== */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-foreground tracking-tight">
+          <h1 className="page-title">
             系统连接{' '}
             <span className="text-xs font-normal text-muted-foreground font-sans uppercase tracking-wider align-middle">
               INTEGRATIONS
             </span>
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="page-subtitle">
             通过统一适配层连接各法人公司的ERP与电商平台。
           </p>
         </div>

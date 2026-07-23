@@ -299,13 +299,13 @@ export function ProfitView() {
       {/* ========== Page Header ========== */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold font-heading text-foreground tracking-tight">
+          <h1 className="page-title">
             利润管理{' '}
             <span className="text-sm font-normal text-muted-foreground font-sans">
               · 收入与费用
             </span>
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="page-subtitle">
             归集收入与费用，跟踪净利润、毛利率与净利率，及时发现盈利异常并支持诊断。
           </p>
         </div>
