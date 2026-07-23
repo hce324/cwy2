@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "shadcn-ui": {
+      "command": "npx",
+      "args": ["@sherifbutt/shadcn-ui-mcp-server"]
+    }
+  }
+}

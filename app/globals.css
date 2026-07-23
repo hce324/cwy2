@@ -1,0 +1,310 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   Material Design 3 Color Tokens
+   ============================================================ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-fira-code);
+  --font-heading: var(--font-roboto);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  /* Material Design 3 specific */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-trend-up: var(--trend-up);
+  --color-trend-down: var(--trend-down);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 24px;
+  --radius-4xl: 32px;
+}
+
+:root {
+  /* Material Design 3 primary palette */
+  --primary: #6442D6;
+  --primary-foreground: #FFFFFF;
+  --secondary: #C8B3FD;
+  --secondary-foreground: #1E1B4B;
+  --success: #16A34A;
+  --warning: #D97706;
+  --danger: #DC2626;
+  --destructive: #DC2626;
+
+  /* Surface colors */
+  --background: #FFFFFF;
+  --foreground: #111827;
+  --muted: #F3F4F6;
+  --muted-foreground: #6B7280;
+  --accent: #F5F3FF;
+  --accent-foreground: #4C1D95;
+
+  /* Card & Popover */
+  --card: #FFFFFF;
+  --card-foreground: #111827;
+  --popover: #FFFFFF;
+  --popover-foreground: #111827;
+
+  /* Border & Input */
+  --border: #E5E7EB;
+  --input: #E5E7EB;
+  --ring: #6442D6;
+
+  /* Radius */
+  --radius: 0.5rem;
+
+  /* Sidebar */
+  --sidebar: #F8FAFC;
+  --sidebar-foreground: #111827;
+  --sidebar-primary: #6442D6;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F5F3FF;
+  --sidebar-accent-foreground: #4C1D95;
+  --sidebar-border: #E5E7EB;
+  --sidebar-ring: #6442D6;
+
+  /* Chart colors */
+  --chart-1: #6442D6;
+  --chart-2: #C8B3FD;
+  --chart-3: #16A34A;
+  --chart-4: #D97706;
+  --chart-5: #DC2626;
+
+  /* Trend colors — semantically separated from danger/warning */
+  --trend-up: #16A34A;
+  --trend-down: #DC2626;
+
+  /* Danger surface (for risk-highlighted cards) */
+  --danger-surface: #FEF4F4;
+  --danger-border: #F3C8C8;
+}
+
+.dark {
+  --primary: #8B7CF6;
+  --primary-foreground: #FFFFFF;
+  --secondary: #4C3F8F;
+  --secondary-foreground: #E2E0FC;
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --destructive: #EF4444;
+
+  --background: #0F172A;
+  --foreground: #F1F5F9;
+  --muted: #1E293B;
+  --muted-foreground: #94A3B8;
+  --accent: #1E1B4B;
+  --accent-foreground: #C8B3FD;
+
+  --card: #1E293B;
+  --card-foreground: #F1F5F9;
+  --popover: #1E293B;
+  --popover-foreground: #F1F5F9;
+
+  --border: #334155;
+  --input: #334155;
+  --ring: #8B7CF6;
+
+  --sidebar: #0F172A;
+  --sidebar-foreground: #F1F5F9;
+  --sidebar-primary: #8B7CF6;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1E1B4B;
+  --sidebar-accent-foreground: #C8B3FD;
+  --sidebar-border: #334155;
+  --sidebar-ring: #8B7CF6;
+
+  --chart-1: #8B7CF6;
+  --chart-2: #C8B3FD;
+  --chart-3: #22C55E;
+  --chart-4: #F59E0B;
+  --chart-5: #EF4444;
+
+  --trend-up: #22C55E;
+  --trend-down: #EF4444;
+
+  --danger-surface: #3B1219;
+  --danger-border: #5C1A24;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+  html {
+    @apply font-sans antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* ============================================================
+     Focus-visible ring — Material style
+     ============================================================ */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* ============================================================
+     Smooth transitions for interactive elements
+     ============================================================ */
+  a, button, input, select, textarea, [tabindex] {
+    transition: background-color 150ms ease, border-color 150ms ease, box-shadow 200ms ease, opacity 150ms ease;
+  }
+}
+
+/* ============================================================
+   Material Design 3 Elevation
+   Values match MD3 tonal elevation spec
+   ============================================================ */
+.elevation-0 { box-shadow: none; }
+.elevation-1 {
+  box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05), 0 1px 3px 1px rgba(0,0,0,0.06);
+  transition: box-shadow 200ms cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+.elevation-2 {
+  box-shadow: 0 1px 2px 0 rgba(0,0,0,0.08), 0 2px 6px 2px rgba(0,0,0,0.06);
+  transition: box-shadow 200ms cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+.elevation-3 {
+  box-shadow: 0 4px 8px 3px rgba(0,0,0,0.08), 0 1px 3px 0 rgba(0,0,0,0.08);
+  transition: box-shadow 200ms cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+.elevation-4 {
+  box-shadow: 0 6px 10px 4px rgba(0,0,0,0.08), 0 2px 3px 0 rgba(0,0,0,0.08);
+  transition: box-shadow 200ms cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+/* Elevation hover shortcuts */
+.elevation-1:hover,
+.hover\:elevation-2:hover { box-shadow: 0 1px 2px 0 rgba(0,0,0,0.08), 0 2px 6px 2px rgba(0,0,0,0.06); }
+
+/* ============================================================
+   Material Ripple
+   ============================================================ */
+.ripple-container {
+  position: relative;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+.ripple-effect {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--primary) 30%, transparent) 0%, color-mix(in srgb, var(--primary) 5%, transparent) 100%);
+  transform: scale(0);
+  animation: ripple-anim 450ms cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+@keyframes ripple-anim {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* ============================================================
+   Card hover elevation transition
+   ============================================================ */
+.card-hover {
+  transition: box-shadow 200ms cubic-bezier(0.4, 0.0, 0.2, 1), transform 200ms cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+.card-hover:hover {
+  box-shadow: 0 2px 6px 0 rgba(0,0,0,0.10), 0 1px 8px 0 rgba(0,0,0,0.08);
+  transform: translateY(-1px);
+}
+
+/* ============================================================
+   Scrollbar styling
+   ============================================================ */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground);
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground);
+}
+
+/* ============================================================
+   Skip link
+   ============================================================ */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 0;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  padding: 8px 16px;
+  z-index: 9999;
+  transition: top 0.2s;
+}
+.skip-link:focus {
+  top: 0;
+}
+
+/* ============================================================
+   Print styles for charts
+   ============================================================ */
+@media print {
+  .no-print { display: none !important; }
+  body { background: white !important; }
+}
+
+/* ============================================================
+   Utility classes
+   ============================================================ */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Danger card surface */
+.kpi-card--danger {
+  border-left: 3px solid var(--danger);
+  background: var(--danger-surface);
+}
