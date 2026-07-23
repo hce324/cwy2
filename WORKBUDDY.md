@@ -4,7 +4,7 @@
 
 - **框架**：Next.js 16 + React 19 + TypeScript（`strict: true`）
 - **样式方案**：Tailwind CSS v4（`@tailwindcss/postcss`，CSS-first 配置，**不是 v3**）
-- **组件库**：shadcn/ui（Radix UI 底层），独占使用
+- **组件库**：shadcn/ui，独占使用
 - **状态管理**：Zustand
 - **图表**：Recharts
 - **图标**：Lucide React
@@ -270,7 +270,7 @@ import { cn } from '@/lib/utils';
 ## 项目结构
 
 ```
-cwy4/
+newcwy/
 ├── app/
 │   ├── layout.tsx          # 根布局（字体加载 + Provider）
 │   ├── page.tsx            # 首页（Sidebar + TopBar + ViewRenderer + AIAssistant）

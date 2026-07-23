@@ -33,3 +33,6 @@ next-env.d.ts
 # IDE
 .vscode/
 .idea/
+
+# local agent workspace memory (not project source)
+.workbuddy/

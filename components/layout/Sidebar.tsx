@@ -166,17 +166,6 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* Company selector */}
-      {!sidebarCollapsed && (
-        <div className="px-4 py-3 border-b border-sidebar-border/50">
-          <div className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">当前公司</div>
-          <div className="text-sm font-medium text-sidebar-foreground flex items-center gap-1 mt-0.5">
-            澜川数字科技有限公司
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground ml-auto" />
-          </div>
-        </div>
-      )}
-
       {/* Nav menus — collapsible groups */}
       <nav className="flex-1 overflow-y-auto custom-scrollbar py-2" aria-label="主导航菜单">
         {menus.map((group, gi) => (

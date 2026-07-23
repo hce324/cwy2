@@ -75,16 +75,18 @@ export function TopBar() {
 
       {/* Role selector */}
       <DropdownMenu>
-        <DropdownMenuTrigger>
-          <Button variant="outline" size="sm" className="gap-2 h-8 text-xs">
-            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold">
-              {roleAvatars[currentRole]}
-            </span>
-            <span className="hidden sm:inline text-muted-foreground">模拟登录角色：</span>
-            <span className="hidden sm:inline font-medium text-foreground">{currentRole}</span>
-            <ChevronDown className="h-3 w-3 text-muted-foreground" />
-          </Button>
-        </DropdownMenuTrigger>
+        <DropdownMenuTrigger
+          render={
+            <Button variant="outline" size="sm" className="gap-2 h-8 text-xs">
+              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold">
+                {roleAvatars[currentRole]}
+              </span>
+              <span className="hidden sm:inline text-muted-foreground">模拟登录角色：</span>
+              <span className="hidden sm:inline font-medium text-foreground">{currentRole}</span>
+              <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            </Button>
+          }
+        />
         <DropdownMenuContent align="end" className="w-52">
           <div className="px-3 py-2 text-xs text-muted-foreground font-medium">模拟登录角色</div>
           {(['财务负责人', '财务专员', '出纳'] as Role[]).map(role => (

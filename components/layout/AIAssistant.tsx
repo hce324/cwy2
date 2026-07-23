@@ -4,8 +4,13 @@ import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import {
-  Bot, Sparkles, Send, Trash2, X, ChevronRight, MessageCircle
+  Bot, Sparkles, Send, Trash2, X, ChevronRight, MessageCircle,
+  Wallet, ReceiptText, CreditCard, Package, Target, ShieldAlert,
+  type LucideIcon
 } from 'lucide-react';
+import {
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip
+} from 'recharts';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -65,6 +70,54 @@ const aiModules = [
   },
 ];
 
+// 各诊断模块对应的 Material 风格图标
+const moduleIcons: Record<string, LucideIcon> = {
+  '资金管理': Wallet,
+  '应收管理': ReceiptText,
+  '应付与付款': CreditCard,
+  '产销管理': Package,
+  '预算执行': Target,
+  '风险与异常': ShieldAlert,
+};
+
+// 图标容器配色：随模块健康状态走语义令牌
+function statusIconClass(status: string) {
+  if (status === '健康') return 'bg-success/10 text-success';
+  if (status === '需关注') return 'bg-warning/10 text-warning';
+  return 'bg-danger/10 text-danger';
+}
+
+// 诊断概览环形图 —— 按模块健康状态聚合
+const statusColors: Record<string, string> = {
+  '健康': 'var(--success)',
+  '需关注': 'var(--warning)',
+  '预警': 'var(--danger)',
+};
+
+const statusSummary = [
+  { key: '健康', name: '健康', value: aiModules.filter((m) => m.status === '健康').length },
+  { key: '需关注', name: '需关注', value: aiModules.filter((m) => m.status === '需关注').length },
+  { key: '预警', name: '预警', value: aiModules.filter((m) => m.status === '预警').length },
+];
+
+function DiagnosisTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ name: string; value: number }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const item = payload[0];
+  if (!item) return null;
+  return (
+    <div className="rounded-md border border-border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md">
+      <span className="font-medium">{item.name}</span>
+      <span className="text-muted-foreground"> · {item.value} 个模块</span>
+    </div>
+  );
+}
+
 const suggestedQuestions = [
   '上个月哪个模块花钱最多？',
   '现金流还安全吗？',
@@ -92,18 +145,22 @@ export function AIAssistantFAB() {
     <button
       onClick={() => setAiPanelOpen(!aiPanelOpen)}
       className={cn(
-        'fixed bottom-4 right-4 z-50 flex items-center gap-2 px-4 py-2.5',
-        'bg-[--primary] text-white rounded-full shadow-lg hover:opacity-90',
-        'transition-all elevation-3 ripple-container',
-        aiPanelOpen && 'opacity-0 pointer-events-none'
+        'fixed bottom-6 right-6 z-[9999]',
+        'w-14 h-14 rounded-full',
+        'bg-[--primary] text-white',
+        'flex items-center justify-center',
+        'shadow-lg hover:opacity-90 active:scale-95',
+        'transition-all duration-200 elevation-3 ripple-container',
+        aiPanelOpen && 'opacity-0 pointer-events-none scale-75'
       )}
       aria-label="AI助手"
+      style={{ position: 'fixed' }}
     >
-      <Bot className="h-5 w-5" />
-      <span className="text-sm font-medium">AI助手</span>
-      <Badge className="bg-white text-[--primary] h-5 min-w-5 px-1 text-[10px]">
+      <Bot className="h-6 w-6" />
+      {/* 模块数量角标 */}
+      <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 rounded-full bg-white text-[--primary] text-[10px] font-bold flex items-center justify-center leading-none">
         6
-      </Badge>
+      </span>
     </button>
   );
 }
@@ -193,13 +250,68 @@ export function AIAssistantPanel() {
                 <Badge className="bg-danger/10 text-danger border-danger/20">预警 2</Badge>
               </div>
 
+              {/* 诊断概览图表 */}
+              <div className="border rounded-lg p-3 elevation-1 bg-card">
+                <div className="text-xs font-medium text-foreground mb-2">诊断概览</div>
+                <div className="relative h-[150px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={statusSummary}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={48}
+                        outerRadius={66}
+                        paddingAngle={2}
+                        stroke="none"
+                      >
+                        {statusSummary.map((s) => (
+                          <Cell key={s.key} fill={statusColors[s.key]} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<DiagnosisTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-2xl font-bold text-foreground tabular-nums leading-none">
+                      {aiModules.length}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground mt-0.5">个模块</span>
+                  </div>
+                </div>
+                <div className="flex justify-center flex-wrap gap-x-3 gap-y-1 mt-2">
+                  {statusSummary.map((s) => (
+                    <div key={s.key} className="flex items-center gap-1">
+                      <span
+                        className="w-2 h-2 rounded-full"
+                        style={{ background: statusColors[s.key] }}
+                      />
+                      <span className="text-[11px] text-muted-foreground">
+                        {s.name} {s.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="space-y-3">
-                {aiModules.map((mod) => (
-                  <div key={mod.module} className="border rounded-lg p-3 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">{mod.module}</span>
+                {aiModules.map((mod) => {
+                  const ModuleIcon = moduleIcons[mod.module] ?? Sparkles;
+                  return (
+                  <div key={mod.module} className="border rounded-lg p-3">
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className={cn(
+                          'shrink-0 w-8 h-8 rounded-lg flex items-center justify-center',
+                          statusIconClass(mod.status)
+                        )}
+                        aria-label={`${mod.module} 状态：${mod.status}`}
+                      >
+                        <ModuleIcon className="h-4 w-4" />
+                      </div>
+                      <span className="text-sm font-medium flex-1 truncate">{mod.module}</span>
                       <Badge className={cn(
-                        'text-[10px]',
+                        'text-[10px] shrink-0',
                         mod.status === '健康' && 'bg-success/10 text-success',
                         mod.status === '需关注' && 'bg-warning/10 text-warning',
                         mod.status === '预警' && 'bg-danger/10 text-danger',
@@ -207,23 +319,26 @@ export function AIAssistantPanel() {
                         {mod.status}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">{mod.conclusion}</p>
-                    <div className="text-xs text-muted-foreground">
-                      {mod.analysisCount}项分析 · 发现{mod.warningCount}项预警
+                    <div className="space-y-1.5 mt-2">
+                      <p className="text-xs text-muted-foreground">{mod.conclusion}</p>
+                      <div className="text-xs text-muted-foreground">
+                        {mod.analysisCount}项分析 · 发现{mod.warningCount}项预警
+                      </div>
+                      <ul className="space-y-0.5 pt-1">
+                        {mod.findings.map((f, i) => (
+                          <li key={i} className={cn(
+                            'text-xs',
+                            f.startsWith('!') ? 'text-danger' : 'text-success'
+                          )}>{f}</li>
+                        ))}
+                      </ul>
+                      <button className="text-xs text-[--primary] font-medium mt-1">
+                        查看详细诊断 →
+                      </button>
                     </div>
-                    <ul className="space-y-0.5 pt-1">
-                      {mod.findings.map((f, i) => (
-                        <li key={i} className={cn(
-                          'text-xs',
-                          f.startsWith('!') ? 'text-danger' : 'text-success'
-                        )}>{f}</li>
-                      ))}
-                    </ul>
-                    <button className="text-xs text-[--primary] font-medium mt-1">
-                      查看详细诊断 →
-                    </button>
                   </div>
-                ))}
+                  );
+                })}
                 <p className="text-xs text-muted-foreground italic pb-4">
                   以上诊断基于当前模拟数据与规则分析，实际系统将结合历史趋势与AI模型给出更精确结论。
                 </p>
