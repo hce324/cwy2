@@ -118,7 +118,7 @@ export function BlueprintView() {
         <Card className="elevation-1">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2 mb-1">
-              <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary text-white text-xs font-bold">
+              <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-foreground text-xs font-bold">
                 林
               </span>
               <CardTitle className="text-sm">财务负责人 · 管理与决策</CardTitle>
@@ -144,7 +144,7 @@ export function BlueprintView() {
         <Card className="elevation-1">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2 mb-1">
-              <span className="flex items-center justify-center w-7 h-7 rounded-full bg-success text-white text-xs font-bold">
+              <span className="flex items-center justify-center w-7 h-7 rounded-full bg-success text-success-foreground text-xs font-bold">
                 财
               </span>
               <CardTitle className="text-sm">财务专员 · 核算与协同</CardTitle>
@@ -170,7 +170,7 @@ export function BlueprintView() {
         <Card className="elevation-1">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2 mb-1">
-              <span className="flex items-center justify-center w-7 h-7 rounded-full bg-warning text-white text-xs font-bold">
+              <span className="flex items-center justify-center w-7 h-7 rounded-full bg-warning text-warning-foreground text-xs font-bold">
                 出
               </span>
               <CardTitle className="text-sm">出纳 · 资金与收付</CardTitle>

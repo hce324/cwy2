@@ -217,7 +217,7 @@ function fmtChange(v: number, unit?: string): string {
 function TrendTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs elevation-3">
       <p className="mb-1 font-medium text-foreground">{label}</p>
       {payload.map((entry: any, i: number) => (
         <p key={i} style={{ color: entry.color }}>

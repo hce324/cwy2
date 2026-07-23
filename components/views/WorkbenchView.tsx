@@ -254,7 +254,7 @@ function DirectorWorkbench() {
                 {i > 0 && <Separator className="mb-3" />}
                 <div className="flex items-start gap-3">
                   <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">账</span>
+                    <span className="text-primary-foreground text-xs font-bold">账</span>
                   </div>
                   <div className="flex-1 min-w-0 space-y-1">
                     <p className="text-sm font-medium text-foreground">

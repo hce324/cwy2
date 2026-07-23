@@ -243,7 +243,7 @@ function AgingTooltip({ active, payload }: { active?: boolean; payload?: Array<{
   const total = agingData.reduce((sum, d) => sum + d.value, 0);
   const pct = ((entry.payload.value / total) * 100).toFixed(0);
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs elevation-3">
       <p className="font-medium text-foreground">{entry.payload.name}</p>
       <p style={{ color: entry.payload.color }}>
         {fmtWan(entry.payload.value)} · {pct}%
@@ -832,7 +832,7 @@ export function PayableView() {
               <TabsTrigger value="pending">
                 待处理
                 {pendingCount > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-destructive text-[10px] font-semibold text-white">
+                  <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold">
                     {pendingCount}
                   </span>
                 )}

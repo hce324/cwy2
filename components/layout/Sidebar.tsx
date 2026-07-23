@@ -77,7 +77,7 @@ function NavGroup({
           className={cn(
             'w-full flex items-center gap-1.5 px-4 pt-2 pb-1',
             'text-xs font-semibold uppercase tracking-[0.05em]',
-            'text-[#9CA3AF] hover:text-[#6B7280] transition-colors',
+            'text-muted-foreground hover:text-foreground transition-colors',
             'cursor-pointer select-none'
           )}
         >
@@ -101,7 +101,7 @@ function NavGroup({
               'w-full flex items-center gap-3 px-3 py-2 text-sm transition-all duration-200 rounded-lg mx-2',
               'hover:bg-sidebar-accent/80',
               currentView === item.viewId
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm'
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium elevation-1'
                 : 'text-sidebar-foreground'
             )}
             aria-current={currentView === item.viewId ? 'page' : undefined}
@@ -151,8 +151,8 @@ export function Sidebar() {
         'flex items-center gap-3 p-4',
         sidebarCollapsed && 'justify-center px-2'
       )}>
-        <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-sm">
-          <span className="text-white font-bold text-base">财</span>
+        <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-primary flex items-center justify-center elevation-1">
+          <span className="text-primary-foreground font-bold text-base">财</span>
         </div>
         {!sidebarCollapsed && (
           <div className="min-w-0">

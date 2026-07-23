@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { cn } from '@/lib/utils';
+import { RISK_LEVELS, countRiskLevels, type RiskLevel } from '@/lib/risk';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,20 +16,30 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertTriangle, Brain, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 
-const exceptions = [
-  { id: 1, type: '应收逾期', title: '华东优选商贸逾期32天', desc: '逾期金额 ¥680,000，超过高风险阈值', time: '今天 09:24', assignee: '李晓雯' },
-  { id: 2, type: '资金风险', title: '未来7天预计出现资金缺口', desc: '7月18日预计缺口 ¥420,000，建议调整付款计划', time: '今天 08:40', assignee: '财务负责人' },
-  { id: 3, type: '付款异常', title: '新程广告传媒付款超预算', desc: '本次申请使项目预算超出12%', time: '昨天 16:18', assignee: '王思雨' },
-  { id: 4, type: '数据迟报', title: '费用明细未按时上传', desc: '市场部7月12日费用明细仍未提交', time: '昨天 14:32', assignee: '市场部接口人' },
-  { id: 5, type: '应收逾期', title: '星禾电子商务逾期18天', desc: '逾期金额 ¥416,800，客户近期经营异常', time: '今天 10:15', assignee: '王思雨' },
-  { id: 6, type: '资金风险', title: '资产负债率突破警戒线', desc: '当前资产负债率52.3%，接近行业参考上限60%', time: '昨天 17:20', assignee: '财务负责人' },
-  { id: 7, type: '付款异常', title: '恒创信息技术缺少发票', desc: '付款申请缺少增值税发票，无法进入审批流程', time: '今天 11:02', assignee: '陈洁' },
-  { id: 8, type: '数据迟报', title: '银行流水与台账不一致', desc: '工商银行账户7月12日流水存在3笔未匹配记录', time: '今天 08:10', assignee: '出纳' },
-  { id: 9, type: '产销偏差', title: '夏季个护系列产销匹配率仅83.1%', desc: '排产额¥224.0万、销售额¥186.2万，库存周转已升至42天', time: '今天 11:36', assignee: '供应链负责人' },
-  { id: 10, type: '直播ROI', title: '新品精华自播ROI低于目标', desc: '当前ROI 4.97，低于目标5.50；退货率8.9%同步偏高', time: '今天 10:48', assignee: '直播运营负责人' },
-  { id: 11, type: '直播ROI', title: '达人D场次出现经营亏损', desc: '达播ROI仅2.94，贡献毛利率12.6%，退货率达到18.8%', time: '今天 10:22', assignee: '达人商务负责人' },
-  { id: 12, type: 'SKU经营', title: 'SKU-076进入低效清退观察', desc: '经营ROI 1.82、毛利率21.4%，库存周转63天', time: '今天 09:56', assignee: '商品负责人' },
-  { id: 13, type: '供应链', title: '两家供应商交付率低于目标', desc: '清源原料准时率91.4%，新远物流包材仅86.5%', time: '今天 09:18', assignee: '采购负责人' },
+interface ExceptionItem {
+  id: number;
+  type: string;
+  title: string;
+  desc: string;
+  time: string;
+  assignee: string;
+  level: RiskLevel;
+}
+
+const exceptions: ExceptionItem[] = [
+  { id: 1, type: '应收逾期', title: '华东优选商贸逾期32天', desc: '逾期金额 ¥680,000，超过高风险阈值', time: '今天 09:24', assignee: '李晓雯', level: 'high' },
+  { id: 2, type: '资金风险', title: '未来7天预计出现资金缺口', desc: '7月18日预计缺口 ¥420,000，建议调整付款计划', time: '今天 08:40', assignee: '财务负责人', level: 'high' },
+  { id: 3, type: '付款异常', title: '新程广告传媒付款超预算', desc: '本次申请使项目预算超出12%', time: '昨天 16:18', assignee: '王思雨', level: 'mid' },
+  { id: 4, type: '数据迟报', title: '费用明细未按时上传', desc: '市场部7月12日费用明细仍未提交', time: '昨天 14:32', assignee: '市场部接口人', level: 'low' },
+  { id: 5, type: '应收逾期', title: '星禾电子商务逾期18天', desc: '逾期金额 ¥416,800，客户近期经营异常', time: '今天 10:15', assignee: '王思雨', level: 'high' },
+  { id: 6, type: '资金风险', title: '资产负债率突破警戒线', desc: '当前资产负债率52.3%，接近行业参考上限60%', time: '昨天 17:20', assignee: '财务负责人', level: 'mid' },
+  { id: 7, type: '付款异常', title: '恒创信息技术缺少发票', desc: '付款申请缺少增值税发票，无法进入审批流程', time: '今天 11:02', assignee: '陈洁', level: 'mid' },
+  { id: 8, type: '数据迟报', title: '银行流水与台账不一致', desc: '工商银行账户7月12日流水存在3笔未匹配记录', time: '今天 08:10', assignee: '出纳', level: 'low' },
+  { id: 9, type: '产销偏差', title: '夏季个护系列产销匹配率仅83.1%', desc: '排产额¥224.0万、销售额¥186.2万，库存周转已升至42天', time: '今天 11:36', assignee: '供应链负责人', level: 'mid' },
+  { id: 10, type: '直播ROI', title: '新品精华自播ROI低于目标', desc: '当前ROI 4.97，低于目标5.50；退货率8.9%同步偏高', time: '今天 10:48', assignee: '直播运营负责人', level: 'mid' },
+  { id: 11, type: '直播ROI', title: '达人D场次出现经营亏损', desc: '达播ROI仅2.94，贡献毛利率12.6%，退货率达到18.8%', time: '今天 10:22', assignee: '达人商务负责人', level: 'high' },
+  { id: 12, type: 'SKU经营', title: 'SKU-076进入低效清退观察', desc: '经营ROI 1.82、毛利率21.4%，库存周转63天', time: '今天 09:56', assignee: '商品负责人', level: 'mid' },
+  { id: 13, type: '供应链', title: '两家供应商交付率低于目标', desc: '清源原料准时率91.4%，新远物流包材仅86.5%', time: '今天 09:18', assignee: '采购负责人', level: 'low' },
 ];
 
 const indicators = [
@@ -37,10 +49,14 @@ const indicators = [
 ];
 
 export function RiskView() {
-  const [selectedException, setSelectedException] = useState<typeof exceptions[0] | null>(null);
+  const [selectedException, setSelectedException] = useState<ExceptionItem | null>(null);
   const [processAction, setProcessAction] = useState('');
   const [processNote, setProcessNote] = useState('');
   const [processResult, setProcessResult] = useState('');
+  const [riskFilter, setRiskFilter] = useState<RiskLevel | 'all'>('all');
+
+  const riskCounts = countRiskLevels(exceptions);
+  const visibleExceptions = riskFilter === 'all' ? exceptions : exceptions.filter((e) => e.level === riskFilter);
 
   const handleSave = () => {
     toast('处理记录已保存，状态已更新');
@@ -70,12 +86,38 @@ export function RiskView() {
         <Button variant="outline" size="sm" className="h-7 text-xs ml-auto flex-shrink-0">查看 AI 诊断</Button>
       </div>
 
-      {/* Stats */}
+      {/* Stats — 数据驱动，点击联动下方异常列表 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card className="elevation-1"><CardContent className="pt-4"><div className="text-xs text-muted-foreground">待处理风险</div><div className="text-2xl font-bold mt-1">13</div></CardContent></Card>
-        <Card className="elevation-1 border-danger/20"><CardContent className="pt-4"><div className="text-xs text-muted-foreground">高风险</div><div className="text-2xl font-bold mt-1 text-danger">6</div></CardContent></Card>
-        <Card className="elevation-1"><CardContent className="pt-4"><div className="text-xs text-muted-foreground">本周已关闭</div><div className="text-2xl font-bold mt-1">12</div></CardContent></Card>
-        <Card className="elevation-1"><CardContent className="pt-4"><div className="text-xs text-muted-foreground">平均处理时长</div><div className="text-2xl font-bold mt-1">6.4小时</div></CardContent></Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => setRiskFilter('all')}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRiskFilter('all'); } }}
+          className={cn('elevation-1 ripple-container card-hover cursor-pointer', riskFilter === 'all' && 'ring-2 ring-primary/40')}
+        >
+          <CardContent className="pt-4"><div className="text-xs text-muted-foreground">待处理风险</div><div className="text-2xl font-bold mt-1">{riskCounts.all}</div></CardContent>
+        </Card>
+        {(['high', 'mid', 'low'] as const).map((lv) => {
+          const meta = RISK_LEVELS[lv];
+          return (
+            <Card
+              key={lv}
+              role="button"
+              tabIndex={0}
+              onClick={() => setRiskFilter(riskFilter === lv ? 'all' : lv)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRiskFilter(riskFilter === lv ? 'all' : lv); } }}
+              className={cn('elevation-1 ripple-container card-hover cursor-pointer', meta.surface, riskFilter === lv && 'ring-2 ring-primary/40')}
+            >
+              <CardContent className="pt-4">
+                <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <span className={cn('risk-dot', meta.dot)} />
+                  {meta.label}
+                </div>
+                <div className={cn('text-2xl font-bold mt-1', meta.text)}>{riskCounts[lv]}</div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {/* Exception tabs */}
@@ -90,22 +132,33 @@ export function RiskView() {
       {/* Exception list */}
       <Card className="elevation-1">
         <CardContent className="pt-4 overflow-x-auto">
+          {riskFilter !== 'all' && (
+            <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
+              <span className={cn('risk-dot', RISK_LEVELS[riskFilter].dot)} />
+              <span>当前筛选：{RISK_LEVELS[riskFilter].label} · 共 {visibleExceptions.length} 条</span>
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setRiskFilter('all')}>清除筛选</Button>
+            </div>
+          )}
           <Table>
-            <TableHeader><TableRow className="text-[11px]"><TableHead className="w-8">#</TableHead><TableHead>类型</TableHead><TableHead>标题</TableHead><TableHead>描述</TableHead><TableHead>时间</TableHead><TableHead>责任人</TableHead><TableHead className="text-center">操作</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow className="text-[11px]"><TableHead className="w-8">#</TableHead><TableHead>等级</TableHead><TableHead>类型</TableHead><TableHead>标题</TableHead><TableHead>描述</TableHead><TableHead>时间</TableHead><TableHead>责任人</TableHead><TableHead className="text-center">操作</TableHead></TableRow></TableHeader>
             <TableBody>
-              {exceptions.map((e) => (
-                <TableRow key={e.id} className="text-xs">
-                  <TableCell>{e.id}</TableCell>
-                  <TableCell><Badge variant="outline" className="text-[10px]">{e.type}</Badge></TableCell>
-                  <TableCell className="font-medium">{e.title}</TableCell>
-                  <TableCell className="text-muted-foreground max-w-[240px] truncate">{e.desc}</TableCell>
-                  <TableCell>{e.time}</TableCell>
-                  <TableCell>{e.assignee}</TableCell>
-                  <TableCell className="text-center">
-                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setSelectedException(e)}>处理异常</Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {visibleExceptions.map((e) => {
+                const meta = RISK_LEVELS[e.level];
+                return (
+                  <TableRow key={e.id} className={cn('text-xs', riskFilter !== 'all' && meta.surface)}>
+                    <TableCell>{e.id}</TableCell>
+                    <TableCell><span className={cn('risk-badge', meta.badge)}>{meta.label}</span></TableCell>
+                    <TableCell><Badge variant="outline" className="text-[10px]">{e.type}</Badge></TableCell>
+                    <TableCell className="font-medium">{e.title}</TableCell>
+                    <TableCell className="text-muted-foreground max-w-[240px] truncate">{e.desc}</TableCell>
+                    <TableCell>{e.time}</TableCell>
+                    <TableCell>{e.assignee}</TableCell>
+                    <TableCell className="text-center">
+                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setSelectedException(e)}>处理异常</Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>

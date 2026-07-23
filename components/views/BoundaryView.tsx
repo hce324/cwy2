@@ -83,9 +83,9 @@ export function BoundaryView() {
           </CardContent>
         </Card>
 
-        <Card className="elevation-1 border-gray-200">
+        <Card className="elevation-1 border-border">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2 text-gray-500">
+            <CardTitle className="text-base flex items-center gap-2 text-muted-foreground">
               <XCircle className="h-4 w-4" /> 明确不在当前范围
             </CardTitle>
             <CardDescription>不以Demo代替专业财务软件</CardDescription>
@@ -94,7 +94,7 @@ export function BoundaryView() {
             <ul className="space-y-1.5 text-xs text-muted-foreground">
               {notCovered.map((item, i) => (
                 <li key={i} className="flex items-start gap-1.5">
-                  <span className="text-gray-400 mt-0.5 flex-shrink-0">—</span>
+                  <span className="text-muted-foreground mt-0.5 flex-shrink-0">—</span>
                   <span>{item}</span>
                 </li>
               ))}

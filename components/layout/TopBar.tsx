@@ -68,7 +68,7 @@ export function TopBar() {
       {/* Notifications */}
       <Button variant="ghost" size="icon" className="h-8 w-8 relative text-muted-foreground hover:text-foreground" aria-label="通知">
         <Bell className="h-4 w-4" />
-        <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-4 h-4 px-1 bg-danger text-white text-[10px] font-semibold rounded-full leading-none">
+        <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-4 h-4 px-1 bg-danger text-danger-foreground text-[10px] font-semibold rounded-full leading-none">
           13
         </span>
       </Button>
@@ -78,7 +78,7 @@ export function TopBar() {
         <DropdownMenuTrigger
           render={
             <Button variant="outline" size="sm" className="gap-2 h-8 text-xs">
-              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold">
+              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
                 {roleAvatars[currentRole]}
               </span>
               <span className="hidden sm:inline text-muted-foreground">模拟登录角色：</span>
@@ -95,7 +95,7 @@ export function TopBar() {
               onClick={() => setRole(role)}
               className={cn('gap-2 text-sm cursor-pointer', currentRole === role && 'bg-accent font-medium')}
             >
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-white text-[11px] font-bold">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-[11px] font-bold">
                 {roleAvatars[role]}
               </span>
               <span>{role}</span>

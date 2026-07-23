@@ -177,7 +177,7 @@ function PieTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs elevation-3">
       <p className="font-medium text-foreground">{entry.name}</p>
       <p style={{ color: entry.payload.color }}>
         占比: {entry.value}%
@@ -189,7 +189,7 @@ function PieTooltip({ active, payload }: any) {
 function MomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs elevation-3">
       <p className="mb-1 font-medium text-foreground">{label}</p>
       {payload.map((entry: any, i: number) => (
         <p key={i} style={{ color: entry.color }}>
@@ -204,7 +204,7 @@ function CostSubjectTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs elevation-3">
       <p className="font-medium text-foreground">{entry.name}</p>
       <p style={{ color: entry.payload.color }}>
         ¥{Number(entry.value).toFixed(2)}万

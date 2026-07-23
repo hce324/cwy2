@@ -8,7 +8,6 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -44,16 +43,27 @@ import {
   FileWarning,
   Calendar,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { formatDelta, type DeltaResult } from '@/lib/kpi';
+import { RISK_LEVELS, type RiskLevel } from '@/lib/risk';
 
 // ============================================================================
 // Inline Data
 // ============================================================================
 
-const statsData = [
-  { label: '应收总额', value: '¥384.26万', tone: 'neutral' as const },
-  { label: '逾期金额', value: '¥161.43万', tone: 'danger' as const },
-  { label: '本月已回款', value: '¥286.00万', tone: 'up' as const },
-  { label: '应收周转天数', value: '52天', tone: 'warning' as const },
+interface StatItem {
+  label: string;
+  value: string;
+  sub?: string;
+  subClass?: string;
+  delta?: DeltaResult;
+}
+
+const statsData: StatItem[] = [
+  { label: '应收总额', value: '¥384.26万' },
+  { label: '逾期金额', value: '¥161.43万', sub: '占应收总额 42.0%', subClass: 'risk-text--high' },
+  { label: '本月已回款', value: '¥286.00万', delta: formatDelta({ value: 12.3, unit: '%', period: '较上月', good: true }) },
+  { label: '应收周转天数', value: '52天', sub: '高于目标 4天', subClass: 'risk-text--mid' },
 ];
 
 const agingData = [
@@ -79,7 +89,7 @@ interface CustomerReceivable {
   name: string;
   amount: number;
   days: number;
-  risk: '高风险' | '中风险' | '低风险';
+  risk: RiskLevel;
   contact: string;
   collector: string;
   tags: string[];
@@ -91,7 +101,7 @@ const allCustomers: CustomerReceivable[] = [
     name: '华东优选',
     amount: 68.00,
     days: 32,
-    risk: '高风险',
+    risk: 'high',
     contact: '张总 138****6789',
     collector: '王思雨',
     tags: ['逾期', '本周到期'],
@@ -101,7 +111,7 @@ const allCustomers: CustomerReceivable[] = [
     name: '星禾电商',
     amount: 41.68,
     days: 18,
-    risk: '高风险',
+    risk: 'high',
     contact: '李经理 139****8901',
     collector: '王思雨',
     tags: ['逾期'],
@@ -111,7 +121,7 @@ const allCustomers: CustomerReceivable[] = [
     name: '锦程物流',
     amount: 55.20,
     days: 45,
-    risk: '中风险',
+    risk: 'mid',
     contact: '王总 137****2345',
     collector: '李晓雯',
     tags: ['逾期'],
@@ -121,7 +131,7 @@ const allCustomers: CustomerReceivable[] = [
     name: '蓝海科技',
     amount: 32.15,
     days: 28,
-    risk: '中风险',
+    risk: 'mid',
     contact: '赵经理 136****5678',
     collector: '陈洁',
     tags: ['逾期', '本周到期'],
@@ -131,7 +141,7 @@ const allCustomers: CustomerReceivable[] = [
     name: '朝阳贸易',
     amount: 88.50,
     days: 10,
-    risk: '低风险',
+    risk: 'low',
     contact: '陈总 135****9012',
     collector: '周文昊',
     tags: ['未到期'],
@@ -141,7 +151,7 @@ const allCustomers: CustomerReceivable[] = [
     name: '绿源食品',
     amount: 19.73,
     days: 5,
-    risk: '低风险',
+    risk: 'low',
     contact: '钱经理 133****3456',
     collector: '李晓雯',
     tags: ['未到期', '本周到期'],
@@ -151,7 +161,7 @@ const allCustomers: CustomerReceivable[] = [
     name: '远航工贸',
     amount: 73.00,
     days: 58,
-    risk: '高风险',
+    risk: 'high',
     contact: '孙总 132****7890',
     collector: '王思雨',
     tags: ['逾期'],
@@ -199,7 +209,7 @@ function AgingTooltip({ active, payload }: any) {
   const total = agingData.reduce((sum, d) => sum + d.value, 0);
   const pct = ((entry.payload.value / total) * 100).toFixed(0);
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs elevation-3">
       <p className="font-medium text-foreground">{entry.payload.name}</p>
       <p style={{ color: entry.payload.color }}>
         {fmtWan(entry.payload.value)} · {pct}%
@@ -211,7 +221,7 @@ function AgingTooltip({ active, payload }: any) {
 function TurnoverTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs elevation-3">
       <p className="mb-1 font-medium text-foreground">{label}</p>
       {payload.map((entry: any, i: number) => (
         <p key={i} style={{ color: entry.color }}>
@@ -407,12 +417,6 @@ export function ReceivableView() {
     setSheetOpen(true);
   };
 
-  const riskConfig: Record<string, { badgeVariant: 'destructive' | 'secondary' | 'outline'; color: string }> = {
-    '高风险': { badgeVariant: 'destructive', color: 'var(--danger)' },
-    '中风险': { badgeVariant: 'secondary', color: 'var(--warning)' },
-    '低风险': { badgeVariant: 'outline', color: 'var(--success)' },
-  };
-
   return (
     <div className="p-6 space-y-6">
       {/* ========== Page Header ========== */}
@@ -447,38 +451,28 @@ export function ReceivableView() {
 
       {/* ========== 4 Stat Indicators ========== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statsData.map((stat) => {
-          const toneStyles: Record<string, string> = {
-            up: 'text-success',
-            down: 'text-danger',
-            warning: 'text-warning',
-            danger: 'text-danger',
-            neutral: 'text-muted-foreground',
-          };
-          return (
-            <Card key={stat.label} className="elevation-1">
-              <CardHeader className="pb-1">
-                <CardDescription>{stat.label}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xl font-bold font-heading text-foreground tracking-tight">
-                  {stat.value}
+        {statsData.map((stat) => (
+          <Card key={stat.label} className="elevation-1">
+            <CardHeader className="pb-1">
+              <CardDescription>{stat.label}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xl font-bold font-heading text-foreground tracking-tight">
+                {stat.value}
+              </p>
+              {stat.delta ? (
+                <p className={cn('mt-0.5 flex items-center gap-0.5', stat.delta.className)}>
+                  <span className="kpi-delta__symbol">{stat.delta.symbol}</span>
+                  {stat.delta.text}
                 </p>
-                {stat.tone !== 'neutral' && (
-                  <p className={`text-xs mt-0.5 ${toneStyles[stat.tone]}`}>
-                    {stat.tone === 'danger'
-                      ? '占应收总额42.0%'
-                      : stat.tone === 'up'
-                        ? '较上月+12.3%'
-                        : stat.tone === 'warning'
-                          ? '高于目标4天'
-                          : ''}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
+              ) : stat.sub ? (
+                <p className={cn('text-xs mt-0.5', stat.subClass ?? 'text-muted-foreground')}>
+                  {stat.sub}
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* ========== Charts Row ========== */}
@@ -671,7 +665,7 @@ export function ReceivableView() {
                     </thead>
                     <tbody>
                       {filteredCustomers.map((customer) => {
-                        const rc = riskConfig[customer.risk];
+                        const meta = RISK_LEVELS[customer.risk];
                         return (
                           <tr
                             key={customer.id}
@@ -699,12 +693,9 @@ export function ReceivableView() {
                               </span>
                             </td>
                             <td className="py-3 px-3 text-center">
-                              <Badge
-                                variant={rc.badgeVariant}
-                                className="text-[10px] h-4 px-1.5"
-                              >
-                                {customer.risk}
-                              </Badge>
+                              <span className={cn('risk-badge', meta.badge)}>
+                                {meta.label}
+                              </span>
                             </td>
                             <td className="py-3 px-3 text-muted-foreground">
                               {customer.contact}

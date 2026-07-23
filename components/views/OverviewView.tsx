@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import {
   Card,
   CardContent,
@@ -8,6 +10,9 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { formatDelta, type DeltaResult } from '@/lib/kpi';
+import { RISK_LEVELS, countRiskLevels, type RiskLevel } from '@/lib/risk';
 import { Progress } from '@/components/ui/progress';
 import {
   revenueTrend,
@@ -44,7 +49,6 @@ import {
   TrendingUp,
   TrendingDown,
   AlertTriangle,
-  ShieldAlert,
   Info,
   ChevronRight,
 } from 'lucide-react';
@@ -174,7 +178,7 @@ function fmtWan(v: number): string {
 function TrendTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-1.5 text-xs shadow-lg min-w-[170px]">
+    <div className="rounded-lg border border-border bg-popover px-3 py-1.5 text-xs elevation-3 min-w-[170px]">
       <p className="mb-1 font-medium text-foreground border-b border-border pb-1">{label}</p>
       {payload.map((entry: any, i: number) => (
         <div key={i} className="flex justify-between gap-4 tabular-nums">
@@ -195,7 +199,7 @@ function WaterfallTooltip({ active, payload, label }: any) {
   const bar = payload[0]?.payload as WaterfallBar | undefined;
   if (!bar) return null;
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-1.5 text-xs shadow-lg">
+    <div className="rounded-lg border border-border bg-popover px-3 py-1.5 text-xs elevation-3">
       <p className="mb-1 font-medium text-foreground">{bar.label}</p>
       <p className="tabular-nums font-medium" style={{ color: bar.value >= 0 ? 'var(--chart-3)' : 'var(--chart-5)' }}>
         {bar.value >= 0 ? '+' : ''}{bar.value.toFixed(0)}万
@@ -207,7 +211,7 @@ function WaterfallTooltip({ active, payload, label }: any) {
 function CashTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-1.5 text-xs shadow-lg">
+    <div className="rounded-lg border border-border bg-popover px-3 py-1.5 text-xs elevation-3">
       <p className="mb-1 font-medium text-foreground">{label}</p>
       {payload.map((entry: any, i: number) => (
         <div key={i} className="flex justify-between gap-3 tabular-nums">
@@ -309,55 +313,54 @@ function StatCard({
   title,
   value,
   sub,
-  tone = 'neutral',
+  delta,
+  riskLevel,
   variant = 'default',
+  onClick,
   trend,
   progress,
 }: {
   title: string;
   value: string;
-  sub: string;
-  tone?: 'up' | 'down' | 'warning' | 'danger' | 'neutral';
+  sub?: string;
+  delta?: DeltaResult;
+  riskLevel?: RiskLevel;
   variant?: 'default' | 'primary' | 'danger';
+  onClick?: () => void;
   trend?: { data: any[]; series: TrendSeries[]; label?: string };
   progress?: { value: number; color: 'danger' | 'warning' };
 }) {
-  const toneStyles: Record<string, string> = {
-    up: 'text-success',
-    down: 'text-danger',
-    warning: 'text-warning',
-    danger: 'text-danger',
-    neutral: 'text-muted-foreground',
-  };
-
-  if (variant === 'danger') {
-    return (
-      <Card className="elevation-1 kpi-card--danger card-hover">
-        <CardHeader className="pb-1">
-          <CardDescription>{title}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xl font-bold font-heading text-foreground tracking-tight tabular-nums">
-            {value}
-          </p>
-          <p className={`text-xs mt-0.5 flex items-center gap-1 ${toneStyles[tone]}`}>
-            <AlertTriangle className="h-3 w-3" />
-            {sub}
-          </p>
-          {progress && (
-            <Progress
-              value={progress.value}
-              className={`mt-3 [&_[data-slot=progress-indicator]]:!bg-${progress.color} [&_[data-slot=progress-track]]:!h-2`}
-            />
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
   const isPrimary = variant === 'primary';
+  const clickable = !!onClick;
+
+  // 底部说明：统一涨跌(delta) > 风险等级(riskLevel 徽章) > 纯文字(sub)
+  const footer = delta ? (
+    <p className={cn('mt-0.5 flex items-center gap-0.5', delta.className)}>
+      <span className="kpi-delta__symbol" aria-hidden>{delta.symbol}</span>
+      <span>{delta.text}</span>
+    </p>
+  ) : riskLevel ? (
+    <div className="mt-0.5 flex items-center gap-1.5">
+      <span className={cn('risk-badge', RISK_LEVELS[riskLevel].badge)}>{RISK_LEVELS[riskLevel].label}</span>
+      {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
+    </div>
+  ) : sub ? (
+    <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>
+  ) : null;
+
   return (
-    <Card className={`elevation-1 card-hover ${isPrimary ? 'border-l-[3px] border-l-[--primary] bg-accent/20' : ''}`}>
+    <Card
+      className={cn(
+        'elevation-1 card-hover',
+        isPrimary && 'border-l-[3px] border-l-[--primary] bg-accent/20',
+        riskLevel && RISK_LEVELS[riskLevel].surface,
+        clickable && 'cursor-pointer transition-opacity hover:opacity-90',
+      )}
+      onClick={onClick}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
+    >
       <CardHeader className="pb-1">
         <CardDescription className={!isPrimary ? 'text-xs' : ''}>{title}</CardDescription>
       </CardHeader>
@@ -365,8 +368,14 @@ function StatCard({
         <p className={`${isPrimary ? 'text-[1.75rem]' : 'text-lg'} font-bold font-heading text-foreground tracking-tight tabular-nums leading-tight`}>
           {value}
         </p>
-        <p className={`mt-0.5 ${!isPrimary ? 'text-[11px]' : 'text-xs'} ${toneStyles[tone]}`}>{sub}</p>
+        {footer}
         {trend && <KpiTrend data={trend.data} series={trend.series} label={trend.label} />}
+        {progress && (
+          <Progress
+            value={progress.value}
+            className={`mt-3 [&_[data-slot=progress-indicator]]:!bg-${progress.color} [&_[data-slot=progress-track]]:!h-2`}
+          />
+        )}
       </CardContent>
     </Card>
   );
@@ -433,6 +442,11 @@ function formatMonthLabel(month: string): string {
 // ============================================================================
 
 export function OverviewView() {
+  const [riskFilter, setRiskFilter] = useState<RiskLevel | 'all'>('all');
+  const riskCounts = countRiskLevels(riskItems);
+  const visibleRisks =
+    riskFilter === 'all' ? riskItems : riskItems.filter((r) => r.level === riskFilter);
+
   return (
     <div className="p-6 space-y-6">
       {/* ========== Page Header ========== */}
@@ -471,8 +485,7 @@ export function OverviewView() {
         <StatCard
           title="确认收入"
           value="¥1,268.04万"
-          sub="+8.6% 同比"
-          tone="up"
+          delta={formatDelta({ value: 8.6, unit: '%', period: '同比', good: true })}
           variant="primary"
           trend={{
             data: revenueTrend,
@@ -486,8 +499,7 @@ export function OverviewView() {
         <StatCard
           title="净利润"
           value="¥214.68万"
-          sub="+12.4% 同比"
-          tone="up"
+          delta={formatDelta({ value: 12.4, unit: '%', period: '同比', good: true })}
           variant="primary"
           trend={{
             data: profitTrend,
@@ -501,8 +513,7 @@ export function OverviewView() {
         <StatCard
           title="净利率"
           value="16.9%"
-          sub="+0.6pp"
-          tone="up"
+          delta={formatDelta({ value: 0.6, unit: 'pp', good: true })}
           trend={{
             data: marginTrend,
             series: [
@@ -515,8 +526,7 @@ export function OverviewView() {
         <StatCard
           title="毛利率"
           value="40.0%"
-          sub="-1.8pp"
-          tone="down"
+          delta={formatDelta({ value: -1.8, unit: 'pp', good: false })}
           trend={{
             data: marginTrend,
             series: [
@@ -531,8 +541,7 @@ export function OverviewView() {
         <StatCard
           title="经营现金流"
           value="¥54.36万"
-          sub="+18.4% 同比"
-          tone="up"
+          delta={formatDelta({ value: 18.4, unit: '%', period: '同比', good: true })}
           trend={{
             data: cashFlowTrend,
             series: [{ key: 'value', color: 'var(--chart-3)', kind: 'bar' }],
@@ -542,8 +551,7 @@ export function OverviewView() {
         <StatCard
           title="可用现金余额"
           value="¥842.66万"
-          sub="+3.2%"
-          tone="up"
+          delta={formatDelta({ value: 3.2, unit: '%', good: true })}
           trend={{
             data: cashPredictionDays,
             series: [{ key: 'balance', color: 'var(--chart-1)', kind: 'area' }],
@@ -553,17 +561,17 @@ export function OverviewView() {
         <StatCard
           title="逾期应收"
           value="¥161.43万"
-          sub="42.0% 占应收"
-          tone="danger"
-          variant="danger"
+          riskLevel="high"
+          sub="占应收 42.0%"
+          onClick={() => setRiskFilter('high')}
           progress={{ value: overdueRatio, color: 'danger' }}
         />
         <StatCard
           title="未来30天资金预测"
           value="缺口¥42.00万"
-          sub="中风险"
-          tone="warning"
-          variant="danger"
+          riskLevel="mid"
+          sub="资金缺口"
+          onClick={() => setRiskFilter('mid')}
           progress={{ value: fundCoverage, color: 'warning' }}
         />
       </div>
@@ -789,17 +797,46 @@ export function OverviewView() {
       </div>
 
       {/* ========== Risk List ========== */}
+      {/* 风险等级筛选：联动顶部风险卡 ↔ 下方清单 */}
+      <div className="flex flex-wrap items-center gap-2">
+        {(['all', 'high', 'mid', 'low'] as const).map((lv) => {
+          const active = riskFilter === lv;
+          const meta = lv === 'all' ? null : RISK_LEVELS[lv];
+          const count = riskCounts[lv];
+          return (
+            <button
+              key={lv}
+              type="button"
+              onClick={() => setRiskFilter(lv)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                active
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border text-muted-foreground hover:bg-muted',
+              )}
+            >
+              {meta && <span className={cn('risk-dot', meta.dot)} />}
+              <span>{lv === 'all' ? '全部' : meta!.short}</span>
+              <span className="tabular-nums">{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <Card className="elevation-1">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <CardTitle>经营风险 / 异常 Top 5</CardTitle>
+              <CardTitle>经营风险 / 异常 Top {riskItems.length}</CardTitle>
               <Badge variant="destructive">
                 <AlertTriangle className="h-3 w-3 mr-0.5" />
-                {riskItems.length}项
+                {visibleRisks.length}项
               </Badge>
             </div>
-            <button className="inline-flex items-center gap-1 text-sm font-medium text-danger hover:underline transition-colors">
+            <button
+              className="inline-flex items-center gap-1 text-sm font-medium text-danger hover:underline transition-colors"
+              onClick={() => setRiskFilter('all')}
+            >
               查看风险明细
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -807,49 +844,21 @@ export function OverviewView() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {riskItems.map((item) => {
-              const levelConfig: Record<string, { badge: string; bg: string; icon: React.ReactNode }> = {
-                high: {
-                  badge: '高风险',
-                  bg: 'bg-danger/8 border-danger/20',
-                  icon: <ShieldAlert className="h-4 w-4 text-danger shrink-0 mt-0.5" />,
-                },
-                mid: {
-                  badge: '中风险',
-                  bg: 'bg-warning/8 border-warning/20',
-                  icon: <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />,
-                },
-                low: {
-                  badge: '低风险',
-                  bg: 'bg-muted border-border',
-                  icon: <AlertTriangle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />,
-                },
-              };
-              const cfg = levelConfig[item.level];
+            {visibleRisks.map((item) => {
+              const meta = RISK_LEVELS[item.level];
 
               return (
                 <div
                   key={item.id}
-                  className={`flex gap-3 rounded-lg border p-3 ${cfg.bg}`}
+                  className={cn('flex gap-3 rounded-lg border p-3', meta.surface)}
                 >
-                  {cfg.icon}
+                  <span className={cn('risk-dot mt-1.5', meta.dot)} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-sm font-semibold text-foreground">
                         {item.title}
                       </span>
-                      <Badge
-                        variant={
-                          item.level === 'high'
-                            ? 'destructive'
-                            : item.level === 'mid'
-                              ? 'secondary'
-                              : 'outline'
-                        }
-                        className="text-[10px] h-4 px-1.5"
-                      >
-                        {cfg.badge}
-                      </Badge>
+                      <span className={cn('risk-badge', meta.badge)}>{meta.label}</span>
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       {item.detail}

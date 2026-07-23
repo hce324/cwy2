@@ -407,7 +407,7 @@ export function VoucherQueryView() {
       {/* ========== Filters ========== */}
       <Card className="elevation-1">
         <CardContent className="pt-4 flex flex-wrap items-center gap-3">
-          <Select value={category} onValueChange={setCategory}>
+          <Select value={category} onValueChange={(v) => setCategory(v ?? '')}>
             <SelectTrigger className="w-36 h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -418,7 +418,7 @@ export function VoucherQueryView() {
               <SelectItem value="转账凭证">转账凭证（转字）</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={year} onValueChange={setYear}>
+          <Select value={year} onValueChange={(v) => setYear(v ?? '')}>
             <SelectTrigger className="w-24 h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -426,7 +426,7 @@ export function VoucherQueryView() {
               <SelectItem value="2026">2026年</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={month} onValueChange={setMonth}>
+          <Select value={month} onValueChange={(v) => setMonth(v ?? '')}>
             <SelectTrigger className="w-20 h-8 text-xs">
               <SelectValue />
             </SelectTrigger>

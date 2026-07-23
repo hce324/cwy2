@@ -122,7 +122,7 @@ const CHANNEL_DATA = [
   { name: '拼多多直营', value: 18.2, color: 'var(--chart-3)' },
   { name: '京东官方店', value: 16.8, color: 'var(--chart-4)' },
   { name: '社区团购', value: 8.5, color: 'var(--chart-5)' },
-  { name: '其他渠道', value: 5.5, color: '#94A3B8' },
+  { name: '其他渠道', value: 5.5, color: 'var(--muted-foreground)' },
 ];
 
 const BIZ_ATTENTION = [
@@ -396,7 +396,7 @@ function StatCard({
         : 'var(--muted-foreground)';
 
   return (
-    <Card size="sm" className="hover:shadow-md transition-shadow duration-200">
+    <Card size="sm" className="card-hover">
       <CardHeader className="pb-1">
         <CardDescription className="text-xs flex items-center gap-1.5 text-muted-foreground">
           {Icon && <Icon className="h-3.5 w-3.5" />}

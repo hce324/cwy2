@@ -463,7 +463,7 @@ export function InventoryManagementView() {
                         onClick={() => setCheckStep(s.step)}
                         className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs transition-all ${
                           isActive
-                            ? 'bg-primary text-white font-medium'
+                            ? 'bg-primary text-primary-foreground font-medium'
                             : isDone
                               ? 'bg-primary/10 text-primary'
                               : 'text-muted-foreground hover:bg-muted'
@@ -471,9 +471,9 @@ export function InventoryManagementView() {
                       >
                         <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
                           isActive
-                            ? 'bg-white/20'
+                            ? 'bg-primary-foreground/20'
                             : isDone
-                              ? 'bg-primary text-white'
+                              ? 'bg-primary text-primary-foreground'
                               : 'bg-muted text-muted-foreground'
                         }`}>
                           {isDone ? <Check className="h-3 w-3" /> : s.step}

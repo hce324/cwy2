@@ -46,6 +46,10 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-trend-up: var(--trend-up);
   --color-trend-down: var(--trend-down);
   --radius-sm: 4px;
@@ -67,6 +71,11 @@
   --warning: #D97706;
   --danger: #DC2626;
   --destructive: #DC2626;
+  /* Solid tonal foregrounds — white text on solid semantic fills */
+  --success-foreground: #FFFFFF;
+  --warning-foreground: #FFFFFF;
+  --danger-foreground: #FFFFFF;
+  --destructive-foreground: #FFFFFF;
 
   /* Surface colors */
   --background: #FFFFFF;
@@ -347,3 +356,95 @@
   border-left: 3px solid var(--danger);
   background: var(--danger-surface);
 }
+
+/* ============================================================
+   KPI Delta — 统一涨跌格式/符号/配色
+   基础类 .kpi-delta + 语义色调类。好=绿/坏=红/警示=橙。
+   配合 lib/kpi.ts 的 formatDelta() 使用。
+   ============================================================ */
+.kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  font-size: 0.75rem;        /* text-xs */
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25rem;
+}
+.kpi-delta__symbol {
+  font-size: 0.7em;
+  line-height: 1;
+}
+.kpi-delta--up { color: var(--success); }
+.kpi-delta--down { color: var(--danger); }
+.kpi-delta--warning { color: var(--warning); }
+.kpi-delta--danger { color: var(--danger); }
+.kpi-delta--neutral { color: var(--muted-foreground); }
+
+/* ============================================================
+   Risk Level — 全局统一风险等级色彩体系
+   高=红 / 中=橙 / 低=灰。所有视图共用，禁止内联拼写配色。
+   配合 lib/risk.ts 的 RISK_LEVELS 使用。
+   颜色全部走 CSS 变量令牌，明暗模式自动适配。
+   ============================================================ */
+
+/* 徽章（自带形状，可直接用于 <span>） */
+.risk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.25rem;
+  padding: 0 0.5rem;
+  font-size: 0.6875rem;   /* ~11px */
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.risk-badge--high {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+}
+.risk-badge--mid {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 32%, transparent);
+}
+.risk-badge--low {
+  background: color-mix(in srgb, var(--muted-foreground) 12%, transparent);
+  color: var(--muted-foreground);
+  border-color: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
+}
+
+/* 表面（卡片/行左侧色条 + 浅色底） */
+.risk-surface--high {
+  border-left: 3px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
+}
+.risk-surface--mid {
+  border-left: 3px solid var(--warning);
+  background: color-mix(in srgb, var(--warning) 7%, transparent);
+}
+.risk-surface--low {
+  border-left: 3px solid var(--border);
+  background: var(--muted);
+}
+
+/* 圆点 */
+.risk-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+.risk-dot--high { background: var(--danger); }
+.risk-dot--mid { background: var(--warning); }
+.risk-dot--low { background: var(--muted-foreground); }
+
+/* 文字配色 */
+.risk-text--high { color: var(--danger); }
+.risk-text--mid { color: var(--warning); }
+.risk-text--low { color: var(--muted-foreground); }

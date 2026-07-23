@@ -92,7 +92,7 @@ export function DocumentsView() {
         {flowSteps.map((step, i) => (
           <div key={i} className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-primary/10 text-primary font-medium">
-              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-white font-bold">
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground font-bold">
                 {i + 1}
               </span>
               {step}
