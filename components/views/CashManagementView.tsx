@@ -1,5 +1,8 @@
 'use client';
 
+import { useState } from 'react';
+import { useAppStore } from '@/lib/store';
+import { canAccess } from '@/lib/navigation';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,8 +11,136 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RippleContainer } from '@/components/custom/RippleContainer';
 import { ArrowRight, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
+import type { ViewId } from '@/lib/types';
+
+type PaymentStatusGroup = 'pending' | 'processing' | 'completed';
+
+interface PaymentTask {
+  id: string;
+  to: string;
+  acct: string;
+  amount: string;
+  approval: string;
+  check: string;
+  status: string;
+  statusKind: 'warning' | 'destructive' | 'success';
+  group: PaymentStatusGroup;
+}
+
+const paymentTasks: PaymentTask[] = [
+  {
+    id: 'FK-202607-0138',
+    to: '上海云仓科技',
+    acct: '招行基本户 8888',
+    amount: '¥113,000.00',
+    approval: '三级审批齐全/合同订单发票可查',
+    check: '余额充足/本单中需要支付',
+    status: '待付款',
+    statusKind: 'warning',
+    group: 'pending',
+  },
+  {
+    id: 'FK-202607-0142',
+    to: '周晓敏',
+    acct: '工行一般户 6621',
+    amount: '¥3,842.50',
+    approval: '缺主管审批/系统已阻断支付',
+    check: '余额充足',
+    status: '禁止付款',
+    statusKind: 'destructive',
+    group: 'pending',
+  },
+  {
+    id: 'FK-202607-0145',
+    to: '迅捷物流有限公司',
+    acct: '招行基本户 8888',
+    amount: '¥12,800.00',
+    approval: '审批齐全/余额及对账单完整',
+    check: '接近单日限额',
+    status: '待审批提醒',
+    statusKind: 'warning',
+    group: 'pending',
+  },
+  {
+    id: 'FK-202607-0136',
+    to: '杭州云启科技有限公司',
+    acct: '招行基本户 8888',
+    amount: '¥86,392.18',
+    approval: '审批齐全/合同订单发票一致',
+    check: '余额充足',
+    status: '付款中',
+    statusKind: 'warning',
+    group: 'processing',
+  },
+  {
+    id: 'FK-202607-0129',
+    to: '抖音支付科技',
+    acct: '招行基本户 8888',
+    amount: '¥48,200.00',
+    approval: '审批齐全/平台结算单匹配',
+    check: '余额充足',
+    status: '已付款',
+    statusKind: 'success',
+    group: 'completed',
+  },
+  {
+    id: 'FK-202607-0132',
+    to: '迅捷物流有限公司',
+    acct: '工行一般户 6621',
+    amount: '¥4,280.00',
+    approval: '审批齐全/物流对账单一致',
+    check: '余额充足',
+    status: '已付款',
+    statusKind: 'success',
+    group: 'completed',
+  },
+];
+
+const receiptRows = [
+  {
+    serial: '755901 · 07-12',
+    source: '抖音支付科技·平台结算批次',
+    account: '招行基本户 8888',
+    amount: '¥86,392.18',
+    match: '已匹配结算单',
+    matchKind: 'success' as const,
+    status: '待确认入账',
+  },
+  {
+    serial: 'IN2026071506 · 07-15',
+    source: '客户来款·销售订单',
+    account: '杭州远海贸易·工行一般户 6621',
+    amount: '¥48,200.00',
+    match: '待核对客户',
+    matchKind: 'warning' as const,
+    status: '待确认入账',
+  },
+];
+
+const tabs = [
+  { key: 'pending', label: '待处理' },
+  { key: 'processing', label: '处理中' },
+  { key: 'completed', label: '已完成' },
+] as const;
+
+function useNavigateWithAccess() {
+  const { setView, currentRole, isPresentationMode } = useAppStore();
+
+  const navigate = (viewId: ViewId) => {
+    if (!canAccess(viewId, currentRole, isPresentationMode)) {
+      toast.error('当前角色无权访问该页面');
+      return;
+    }
+    setView(viewId);
+  };
+
+  return navigate;
+}
 
 export function CashManagementView() {
+  const [activeTab, setActiveTab] = useState<PaymentStatusGroup>('pending');
+  const navigate = useNavigateWithAccess();
   return (
     <div className="p-6 space-y-6">
       {/* ========== Page Header ========== */}
@@ -26,7 +157,9 @@ export function CashManagementView() {
           </p>
         </div>
         <RippleContainer>
-          <Button size="sm">查核大额支付授权</Button>
+          <Button size="sm" onClick={() => navigate('risk')}>
+            查核大额支付授权
+          </Button>
         </RippleContainer>
       </div>
 
@@ -98,17 +231,16 @@ export function CashManagementView() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="待处理">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as PaymentStatusGroup)}>
             <TabsList>
-              <TabsTrigger value="待处理" className="text-xs">
-                待处理 3
-              </TabsTrigger>
-              <TabsTrigger value="处理中" className="text-xs">
-                处理中 1
-              </TabsTrigger>
-              <TabsTrigger value="已完成" className="text-xs">
-                已完成 42
-              </TabsTrigger>
+              {tabs.map((tab) => {
+                const count = paymentTasks.filter((t) => t.group === tab.key).length;
+                return (
+                  <TabsTrigger key={tab.key} value={tab.key} className="text-xs">
+                    {tab.label} {count}
+                  </TabsTrigger>
+                );
+              })}
             </TabsList>
           </Tabs>
           <Table className="mt-3">
@@ -125,65 +257,43 @@ export function CashManagementView() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {[
-                {
-                  id: 'FK-202607-0138',
-                  to: '上海云仓科技',
-                  acct: '招行基本户 8888',
-                  amount: '¥113,000.00',
-                  approval: '三级审批齐全/合同订单发票可查',
-                  check: '余额充足/本单中需要支付',
-                  status: '待付款',
-                  statusKind: 'warning' as const,
-                },
-                {
-                  id: 'FK-202607-0142',
-                  to: '周晓敏',
-                  acct: '工行一般户 6621',
-                  amount: '¥3,842.50',
-                  approval: '缺主管审批/系统已阻断支付',
-                  check: '余额充足',
-                  status: '禁止付款',
-                  statusKind: 'destructive' as const,
-                },
-                {
-                  id: 'FK-202607-0145',
-                  to: '迅捷物流有限公司',
-                  acct: '招行基本户 8888',
-                  amount: '¥12,800.00',
-                  approval: '审批齐全/余额及对账单完整',
-                  check: '接近单日限额',
-                  status: '待审批提醒',
-                  statusKind: 'warning' as const,
-                },
-              ].map((row, i) => (
-                <TableRow key={i} className="text-xs">
-                  <TableCell className="font-mono">{row.id}</TableCell>
-                  <TableCell>{row.to}</TableCell>
-                  <TableCell>{row.acct}</TableCell>
-                  <TableCell className="text-right font-mono">{row.amount}</TableCell>
-                  <TableCell>{row.approval}</TableCell>
-                  <TableCell>{row.check}</TableCell>
-                  <TableCell>
-                    <Badge
-                      className={
-                        row.statusKind === 'destructive'
-                          ? 'bg-destructive/10 text-destructive'
-                          : 'bg-warning/10 text-warning'
-                      }
-                    >
-                      {row.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <RippleContainer>
-                      <Button variant="ghost" size="sm" className="h-7 text-xs">
-                        查看依据
-                      </Button>
-                    </RippleContainer>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {paymentTasks
+                .filter((row) => row.group === activeTab)
+                .map((row, i) => (
+                  <TableRow key={i} className="text-xs">
+                    <TableCell className="font-mono">{row.id}</TableCell>
+                    <TableCell>{row.to}</TableCell>
+                    <TableCell>{row.acct}</TableCell>
+                    <TableCell className="text-right font-mono">{row.amount}</TableCell>
+                    <TableCell>{row.approval}</TableCell>
+                    <TableCell>{row.check}</TableCell>
+                    <TableCell>
+                      <Badge
+                        className={
+                          row.statusKind === 'destructive'
+                            ? 'bg-destructive/10 text-destructive'
+                            : row.statusKind === 'success'
+                              ? 'bg-success/10 text-success'
+                              : 'bg-warning/10 text-warning'
+                        }
+                      >
+                        {row.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <RippleContainer>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => navigate('hz-sourcevoucher')}
+                        >
+                          查看依据
+                        </Button>
+                      </RippleContainer>
+                    </TableCell>
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
         </CardContent>
@@ -208,48 +318,34 @@ export function CashManagementView() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow className="text-xs">
-                <TableCell className="font-mono">755901 · 07-12</TableCell>
-                <TableCell>抖音支付科技·平台结算批次</TableCell>
-                <TableCell>招行基本户 8888</TableCell>
-                <TableCell className="text-right font-mono">¥86,392.18</TableCell>
-                <TableCell>
-                  <Badge className="bg-success/10 text-success">
-                    已匹配结算单
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">待确认入账</Badge>
-                </TableCell>
-                <TableCell className="text-center">
-                  <RippleContainer>
-                    <Button variant="ghost" size="sm" className="h-7 text-xs">
-                      查看流水
-                    </Button>
-                  </RippleContainer>
-                </TableCell>
-              </TableRow>
-              <TableRow className="text-xs">
-                <TableCell className="font-mono">IN2026071506 · 07-15</TableCell>
-                <TableCell>客户来款·销售订单</TableCell>
-                <TableCell>杭州远海贸易·工行一般户 6621</TableCell>
-                <TableCell className="text-right font-mono">¥48,200.00</TableCell>
-                <TableCell>
-                  <Badge className="bg-warning/10 text-warning">
-                    待核对客户
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">待确认入账</Badge>
-                </TableCell>
-                <TableCell className="text-center">
-                  <RippleContainer>
-                    <Button variant="ghost" size="sm" className="h-7 text-xs">
-                      查看流水
-                    </Button>
-                  </RippleContainer>
-                </TableCell>
-              </TableRow>
+              {receiptRows.map((row, i) => (
+                <TableRow key={i} className="text-xs">
+                  <TableCell className="font-mono">{row.serial}</TableCell>
+                  <TableCell>{row.source}</TableCell>
+                  <TableCell>{row.account}</TableCell>
+                  <TableCell className="text-right font-mono">{row.amount}</TableCell>
+                  <TableCell>
+                    <Badge className={row.matchKind === 'success' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}>
+                      {row.match}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{row.status}</Badge>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <RippleContainer>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => navigate('hz-bankrecon')}
+                      >
+                        查看流水
+                      </Button>
+                    </RippleContainer>
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </CardContent>

@@ -167,7 +167,7 @@ export function Sidebar() {
       </div>
 
       {/* Nav menus — collapsible groups */}
-      <nav className="flex-1 overflow-y-auto custom-scrollbar py-2" aria-label="主导航菜单">
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hidden py-2" aria-label="主导航菜单">
         {menus.map((group, gi) => (
           <NavGroup
             key={gi}

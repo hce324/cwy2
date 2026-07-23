@@ -67,7 +67,7 @@ const waterfallData = [
   { key: '净利润', label: '净利润', value: 215, fill: true, color: 'var(--chart-3)' },
 ];
 
-// Build waterfall with base/height for stacked bar
+// Build bottom-aligned bars: all bars rise from y=0, height = abs(value)
 interface WaterfallBar {
   key: string;
   label: string;
@@ -77,20 +77,14 @@ interface WaterfallBar {
   color: string;
 }
 
-const waterfallBars: WaterfallBar[] = [];
-let running = 0;
-for (const item of waterfallData) {
-  const bar: WaterfallBar = {
-    key: item.key,
-    label: item.label,
-    value: item.value,
-    base: item.value >= 0 ? running : running + item.value,
-    height: Math.abs(item.value),
-    color: item.color,
-  };
-  running += item.value;
-  waterfallBars.push(bar);
-}
+const waterfallBars: WaterfallBar[] = waterfallData.map((item) => ({
+  key: item.key,
+  label: item.label,
+  value: item.value,
+  base: 0,
+  height: Math.abs(item.value),
+  color: item.color,
+}));
 
 const cashPredictionDays = [
   { label: '期初', balance: 788.30 },
@@ -541,7 +535,6 @@ export function OverviewView() {
               <BarChart
                 data={waterfallBars}
                 margin={{ top: 12, right: 4, left: 0, bottom: 0 }}
-                stackOffset="sign"
                 barCategoryGap="30%"
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -558,10 +551,8 @@ export function OverviewView() {
                   tickFormatter={(v) => `${v}`}
                 />
                 <RechartsTooltip content={<WaterfallTooltip />} />
-                {/* Invisible base bar */}
-                <Bar dataKey="base" stackId="stack" fill="transparent" />
-                {/* Visible value bar with labels */}
-                <Bar dataKey="height" stackId="stack" radius={[4, 4, 0, 0]}>
+                {/* Bottom-aligned value bar */}
+                <Bar dataKey="height" radius={[4, 4, 0, 0]}>
                   {waterfallBars.map((entry, idx) => (
                     <Cell
                       key={idx}

@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { useAppStore } from '@/lib/store';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Scan, Plus, ArrowRight, Search } from 'lucide-react';
+import { Plus, ArrowRight, Search } from 'lucide-react';
 
 const documents = [
   { name: '数电专票 246120…5281', sub: '上海云启科技有限公司 · 2026-07-13', category: '发票', company: '杭州星芒供应链', source: '税务数字账户', amount: '¥113,000.00', result: '票面字段完整 · 查验通过' },
@@ -26,8 +28,6 @@ const documents = [
 
 const flowSteps = ['资料上传', 'AI识别', '原始凭证', '批量制证'];
 
-const tabLabels = ['全部 1,284', '发票 628', '平台结算单 342', '银行回单 296', '异常 18'];
-
 function resultTone(result: string): string {
   if (result.includes('差异') || result.includes('缺少') || result.includes('未付')) {
     return 'text-warning';
@@ -38,7 +38,36 @@ function resultTone(result: string): string {
   return 'text-muted-foreground';
 }
 
+function isAbnormal(result: string): boolean {
+  return result.includes('差异') || result.includes('缺少') || result.includes('未付');
+}
+
+interface TabConfig {
+  key: string;
+  label: string;
+  filter: (doc: typeof documents[0]) => boolean;
+}
+
+const tabs: TabConfig[] = [
+  { key: '全部', label: '全部', filter: () => true },
+  { key: '发票', label: '发票', filter: (doc) => doc.category === '发票' },
+  { key: '平台结算单', label: '平台结算单', filter: (doc) => doc.category === '平台结算' },
+  { key: '银行回单', label: '银行回单', filter: (doc) => doc.category === '银行回单' },
+  { key: '异常', label: '异常', filter: (doc) => isAbnormal(doc.result) },
+];
+
+const tabLabels = tabs.map((tab) => ({
+  ...tab,
+  count: documents.filter(tab.filter).length,
+}));
+
 export function DocumentsView() {
+  const { setView } = useAppStore();
+  const [activeTab, setActiveTab] = useState('全部');
+
+  const activeFilter = tabs.find((t) => t.key === activeTab)?.filter ?? (() => true);
+  const filteredDocuments = documents.filter(activeFilter);
+
   return (
     <div className="p-6 space-y-6">
       {/* Page Header */}
@@ -51,7 +80,7 @@ export function DocumentsView() {
             扫描原始单据，导入发票、平台账单、银行流水和业务附件。
           </p>
         </div>
-        <Button size="sm" className="gap-1.5">
+        <Button size="sm" className="gap-1.5" onClick={() => setView('import')}>
           <Plus className="h-4 w-4" /> 扫描或导入
         </Button>
       </div>
@@ -77,11 +106,11 @@ export function DocumentsView() {
 
       {/* Tabs and Search */}
       <div className="flex items-center gap-3">
-        <Tabs defaultValue="全部">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
-            {tabLabels.map((label) => (
-              <TabsTrigger key={label} value={label.split(' ')[0]} className="text-xs">
-                {label}
+            {tabLabels.map((tab) => (
+              <TabsTrigger key={tab.key} value={tab.key} className="text-xs">
+                {tab.label} {tab.count.toLocaleString()}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -93,7 +122,11 @@ export function DocumentsView() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        全部采集资料 — 除发票、平台结算单和银行回单外，还包括订单、入库单、报销单及付款审批资料。
+        {activeTab === '全部'
+          ? '全部采集资料 — 除发票、平台结算单和银行回单外，还包括订单、入库单、报销单及付款审批资料。'
+          : activeTab === '异常'
+            ? '识别或匹配结果存在异常的资料，需人工复核或补充附件。'
+            : `${activeTab}类采集资料 — 点击「查看原件」可进入原始凭证详情。`}
       </p>
 
       {/* Table */}
@@ -112,7 +145,7 @@ export function DocumentsView() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {documents.map((doc, i) => (
+              {filteredDocuments.map((doc, i) => (
                 <TableRow key={i} className="text-xs">
                   <TableCell>
                     <div className="font-medium text-foreground">{doc.name}</div>
@@ -128,7 +161,9 @@ export function DocumentsView() {
                     <span className={resultTone(doc.result)}>{doc.result}</span>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Button variant="ghost" size="sm" className="h-7 text-xs">查看原件</Button>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setView('hz-sourcevoucher')}>
+                      查看原件
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

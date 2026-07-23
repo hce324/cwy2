@@ -272,6 +272,17 @@
 }
 
 /* ============================================================
+   Hidden scrollbar — keeps scrollable area functional but hides scrollbar
+   ============================================================ */
+.scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+/* ============================================================
    Skip link
    ============================================================ */
 .skip-link {
