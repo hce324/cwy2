@@ -43,6 +43,14 @@ const ReportsView = lazy(() => import('./ReportsView').then(m => ({ default: m.R
 const PeriodEndView = lazy(() => import('./PeriodEndView').then(m => ({ default: m.PeriodEndView })));
 const TaxView = lazy(() => import('./TaxView').then(m => ({ default: m.TaxView })));
 const SettingsView = lazy(() => import('./SettingsView').then(m => ({ default: m.SettingsView })));
+const HrOverviewView = lazy(() => import('./HrOverviewView').then(m => ({ default: m.HrOverviewView })));
+const HrOrgView = lazy(() => import('./HrOrgView').then(m => ({ default: m.HrOrgView })));
+const HrStaffView = lazy(() => import('./HrStaffView').then(m => ({ default: m.HrStaffView })));
+const HrAttendanceView = lazy(() => import('./HrAttendanceView').then(m => ({ default: m.HrAttendanceView })));
+const HrPayrollView = lazy(() => import('./HrPayrollView').then(m => ({ default: m.HrPayrollView })));
+const HrRecruitView = lazy(() => import('./HrRecruitView').then(m => ({ default: m.HrRecruitView })));
+const HrPerfView = lazy(() => import('./HrPerfView').then(m => ({ default: m.HrPerfView })));
+const HrManageView = lazy(() => import('./HrManageView').then(m => ({ default: m.HrManageView })));
 
 const viewMap: Record<ViewId, React.LazyExoticComponent<React.ComponentType>> = {
   workbench: WorkbenchView,
@@ -80,6 +88,14 @@ const viewMap: Record<ViewId, React.LazyExoticComponent<React.ComponentType>> = 
   'hz-closing': PeriodEndView,
   'hz-tax': TaxView,
   'hz-settings': SettingsView,
+  'hr-overview': HrOverviewView,
+  'hr-org': HrOrgView,
+  'hr-staff': HrStaffView,
+  'hr-attendance': HrAttendanceView,
+  'hr-payroll': HrPayrollView,
+  'hr-recruit': HrRecruitView,
+  'hr-perf': HrPerfView,
+  'hr-manage': HrManageView,
 };
 
 function ViewFallback() {

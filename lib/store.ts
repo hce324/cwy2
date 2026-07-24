@@ -10,21 +10,31 @@ interface AppState {
   sidebarCollapsed: boolean;
   aiPanelOpen: boolean;
   aiPanelTab: 'diagnosis' | 'chat';
+  aiModule: 'finance' | 'hr';
   aiUnreadCount: number;
+
+  // HR roster UI state
+  hrStaffSearch: string;
+  hrStaffDeptFilter: string;
+  hrStaffPage: number;
 
   // Actions
   setRole: (role: Role) => void;
+  setHrStaffSearch: (v: string) => void;
+  setHrStaffDeptFilter: (v: string) => void;
+  setHrStaffPage: (v: number) => void;
   setView: (view: ViewId) => void;
   togglePresentationMode: () => void;
   setPresentationMode: (on: boolean) => void;
   toggleSidebar: () => void;
   setAiPanelOpen: (open: boolean) => void;
   setAiPanelTab: (tab: 'diagnosis' | 'chat') => void;
+  setAiModule: (m: 'finance' | 'hr') => void;
 
-  // Chat history
-  chatHistory: ChatMessage[];
-  addChatMessage: (msg: ChatMessage) => void;
-  clearChatHistory: () => void;
+  // Chat history（按模块分桶：财务 / 人事）
+  chatHistory: Record<'finance' | 'hr', ChatMessage[]>;
+  addChatMessage: (module: 'finance' | 'hr', msg: ChatMessage) => void;
+  clearChatHistory: (module: 'finance' | 'hr') => void;
 
   // Month-end task completion
   closingTasks: Record<string, boolean>;
@@ -45,7 +55,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   sidebarCollapsed: false,
   aiPanelOpen: false,
   aiPanelTab: 'diagnosis',
+  aiModule: 'finance',
   aiUnreadCount: 6,
+
+  // HR roster UI state
+  hrStaffSearch: '',
+  hrStaffDeptFilter: '全部部门',
+  hrStaffPage: 1,
 
   setRole: (role: Role) => {
     const state = get();
@@ -54,8 +70,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       currentRole: role,
       currentView: defaultView,
       isPresentationMode: false,
+      // HR 角色默认进入人事 AI 模块，财务角色默认进入财务模块
+      aiModule: role.startsWith('HR') ? 'hr' : 'finance',
+      // reset HR roster UI when switching roles
+      hrStaffSearch: '',
+      hrStaffDeptFilter: '全部部门',
+      hrStaffPage: 1,
     });
   },
+
+  setHrStaffSearch: (v: string) => set({ hrStaffSearch: v, hrStaffPage: 1 }),
+  setHrStaffDeptFilter: (v: string) => set({ hrStaffDeptFilter: v, hrStaffPage: 1 }),
+  setHrStaffPage: (v: number) => set({ hrStaffPage: v }),
 
   setView: (view: ViewId) => {
     const state = get();
@@ -89,11 +115,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setAiPanelTab: (tab: 'diagnosis' | 'chat') => set({ aiPanelTab: tab }),
 
-  chatHistory: [],
-  addChatMessage: (msg: ChatMessage) => set(s => ({
-    chatHistory: [...s.chatHistory, msg],
+  setAiModule: (m: 'finance' | 'hr') => set({ aiModule: m }),
+
+  chatHistory: { finance: [], hr: [] },
+  addChatMessage: (module, msg) => set(s => ({
+    chatHistory: { ...s.chatHistory, [module]: [...s.chatHistory[module], msg] },
   })),
-  clearChatHistory: () => set({ chatHistory: [] }),
+  clearChatHistory: (module) => set(s => ({
+    chatHistory: { ...s.chatHistory, [module]: [] },
+  })),
 
   closingTasks: {},
   toggleClosingTask: (id: string) => set(s => ({

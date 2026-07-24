@@ -20,6 +20,7 @@ const roleAvatars: Record<Role, string> = {
   '财务负责人': '林',
   '财务专员': '财',
   '出纳': '出',
+  'HR负责人': '人',
 };
 
 export function TopBar() {
@@ -89,7 +90,7 @@ export function TopBar() {
         />
         <DropdownMenuContent align="end" className="w-52">
           <div className="px-3 py-2 text-xs text-muted-foreground font-medium">模拟登录角色</div>
-          {(['财务负责人', '财务专员', '出纳'] as Role[]).map(role => (
+          {(['财务负责人', '财务专员', '出纳', 'HR负责人'] as Role[]).map(role => (
             <DropdownMenuItem
               key={role}
               onClick={() => setRole(role)}

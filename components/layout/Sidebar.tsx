@@ -8,7 +8,8 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ChevronLeft, ChevronRight, ChevronDown, MessageSquare, Settings,
   TrendingUp, Wallet, FileText, Receipt, Shield, BarChart3, Calculator,
-  BookOpen, ClipboardCheck, Building2, Scale, Users, Presentation
+  BookOpen, ClipboardCheck, Building2, Scale, Users, Presentation,
+  UserCog, Network, UserCheck, CalendarClock, Banknote, Briefcase, Award, Landmark
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
@@ -48,6 +49,14 @@ const iconMap: Record<string, React.ReactNode> = {
   'hz-closing': <ClipboardCheck className="h-4 w-4" />,
   'hz-tax': <Receipt className="h-4 w-4" />,
   'hz-settings': <Settings className="h-4 w-4" />,
+  'hr-overview': <UserCog className="h-4 w-4" />,
+  'hr-org': <Network className="h-4 w-4" />,
+  'hr-staff': <UserCheck className="h-4 w-4" />,
+  'hr-attendance': <CalendarClock className="h-4 w-4" />,
+  'hr-payroll': <Banknote className="h-4 w-4" />,
+  'hr-recruit': <Briefcase className="h-4 w-4" />,
+  'hr-perf': <Award className="h-4 w-4" />,
+  'hr-manage': <Landmark className="h-4 w-4" />,
 };
 
 function NavGroup({
