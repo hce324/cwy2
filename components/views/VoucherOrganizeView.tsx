@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { trpc } from '@/lib/trpc-client';
 import { cn } from '@/lib/utils';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,8 +12,9 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { RippleContainer } from '@/components/custom/RippleContainer';
-import { toast } from 'sonner';
 import {
   BookOpen,
   CalendarDays,
@@ -23,30 +26,110 @@ import {
   ListChecks,
 } from 'lucide-react';
 
+// ─── Helpers ────────────────────────────────────────────────────────
+
 const MONTHS = [
   '一月', '二月', '三月', '四月', '五月', '六月',
   '七月', '八月', '九月', '十月', '十一月', '十二月',
 ];
 
-const VOID_VOUCHERS = [
-  { id: '记字138号', date: '2026-07-13', summary: '采购蓝牙耳机入库' },
-  { id: '转字066号', date: '2026-07-12', summary: '平台服务费暂估' },
-];
+function fmtVoucherNo(v: { voucherWord: string; voucherNumber: number }): string {
+  return `${v.voucherWord}字${v.voucherNumber}号`;
+}
+
+function fmtDate(d: unknown): string {
+  if (d instanceof Date) return d.toISOString().slice(0, 10);
+  return String(d ?? '').slice(0, 10);
+}
+
+// ─── Component ──────────────────────────────────────────────────────
 
 export function VoucherOrganizeView() {
   const [period, setPeriod] = useState({ year: 2026, month: 7 });
   const [open, setOpen] = useState(false);
   const [option, setOption] = useState('delete-and-reorder');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const periodLabel = `${period.year}年${period.month}月`;
 
-  const handleExecute = () => {
-    toast('凭证整理完成', {
-      description: `已对 ${periodLabel} 执行整理：${
-        option === 'delete-and-reorder' ? '删除作废凭证并整理断号' : '仅删除作废凭证'
-      }`,
+  // ─── tRPC query: fetch all vouchers in the current period ─────────
+  // We fetch broadly then filter client-side for voided vouchers,
+  // because the list router does not expose a direct isVoided filter.
+  const listQuery = trpc.voucher.list.useQuery({
+    auditStatus: 'all',
+    year: String(period.year),
+    month: String(period.month),
+    limit: 200,
+    offset: 0,
+  });
+
+  const allItems = listQuery.data?.items ?? [];
+  const voidedItems = useMemo(
+    () => allItems.filter((v) => v.isVoided),
+    [allItems],
+  );
+
+  const isLoading = listQuery.isLoading;
+  const isError = listQuery.isError;
+  const errorMsg = listQuery.error?.message;
+
+  // ─── tRPC mutations ───────────────────────────────────────────────
+
+  const utils = trpc.useUtils();
+  const voidMutation = trpc.voucher.void.useMutation({
+    onSuccess: () => {
+      utils.voucher.list.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message || '操作失败，请重试');
+    },
+  });
+
+  // ─── Handlers ─────────────────────────────────────────────────────
+
+  const toggleSelect = (voucherNo: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(voucherNo)) next.delete(voucherNo);
+      else next.add(voucherNo);
+      return next;
     });
   };
+
+  const toggleAll = () => {
+    if (selected.size === voidedItems.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(voidedItems.map((v) => v.voucherNo)));
+    }
+  };
+
+  const handleExecute = () => {
+    if (voidedItems.length === 0) {
+      toast.error('当前期间没有可整理的作废凭证');
+      return;
+    }
+    if (selected.size === 0) {
+      toast.error('请至少选择一张作废凭证');
+      return;
+    }
+    // Void each selected voucher with an organize reason
+    const targets = voidedItems.filter((v) => selected.has(v.voucherNo));
+    targets.forEach((v) => {
+      voidMutation.mutate({
+        id: Number(v.id),
+        reason: option === 'delete-and-reorder'
+          ? '凭证整理：删除并重排断号'
+          : '凭证整理：仅删除作废凭证',
+      });
+    });
+    toast.success('凭证整理已提交', {
+      description: `正在整理 ${targets.length} 张凭证：${option === 'delete-and-reorder' ? '删除作废凭证并整理断号' : '仅删除作废凭证'}`,
+    });
+    setSelected(new Set());
+  };
+
+  // ─── Render ───────────────────────────────────────────────────────
 
   return (
     <div className="p-6 space-y-6">
@@ -59,7 +142,7 @@ export function VoucherOrganizeView() {
         </p>
       </div>
 
-      {/* Period summary bar — 会计期间可切换时间 */}
+      {/* Period summary bar */}
       <Card className="elevation-1">
         <CardContent className="p-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -103,13 +186,13 @@ export function VoucherOrganizeView() {
                       <div className="grid grid-cols-3 gap-1.5">
                         {MONTHS.map((m, i) => {
                           const month = i + 1;
-                          const selected = period.month === month;
+                          const selected2 = period.month === month;
                           return (
                             <Button
                               key={m}
-                              variant={selected ? 'default' : 'outline'}
+                              variant={selected2 ? 'default' : 'outline'}
                               size="sm"
-                              className={cn('h-8', !selected && 'text-foreground')}
+                              className={cn('h-8', !selected2 && 'text-foreground')}
                               onClick={() => {
                                 setPeriod((p) => ({ ...p, month }));
                                 setOpen(false);
@@ -134,7 +217,9 @@ export function VoucherOrganizeView() {
                 </span>
                 <div className="leading-tight">
                   <p className="text-xs text-muted-foreground">待整理作废凭证</p>
-                  <p className="font-semibold tabular-nums text-foreground">{VOID_VOUCHERS.length} 张</p>
+                  <p className="font-semibold tabular-nums text-foreground">
+                    {isLoading ? '...' : `${voidedItems.length} 张`}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -143,7 +228,9 @@ export function VoucherOrganizeView() {
                 </span>
                 <div className="leading-tight">
                   <p className="text-xs text-muted-foreground">整理后剩余断号</p>
-                  <p className="font-semibold tabular-nums text-foreground">0 处</p>
+                  <p className="font-semibold tabular-nums text-foreground">
+                    {isLoading ? '...' : `${Math.max(0, voidedItems.length - selected.size)} 处`}
+                  </p>
                 </div>
               </div>
             </div>
@@ -184,8 +271,12 @@ export function VoucherOrganizeView() {
             <Separator />
             <div className="space-y-2">
               <RippleContainer className="ripple-container">
-                <Button className="w-full" onClick={handleExecute}>
-                  执行凭证整理
+                <Button
+                  className="w-full"
+                  onClick={handleExecute}
+                  disabled={voidMutation.isPending || voidedItems.length === 0}
+                >
+                  {voidMutation.isPending ? '整理中...' : '执行凭证整理'}
                 </Button>
               </RippleContainer>
               <p className="text-xs text-muted-foreground text-center">仅会计专员可操作</p>
@@ -202,32 +293,61 @@ export function VoucherOrganizeView() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10">选择</TableHead>
-                  <TableHead>原凭证字号</TableHead>
-                  <TableHead>日期</TableHead>
-                  <TableHead>摘要</TableHead>
-                  <TableHead>作废状态</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {VOID_VOUCHERS.map((v) => (
-                  <TableRow key={v.id}>
-                    <TableCell><Checkbox /></TableCell>
-                    <TableCell className="font-medium">{v.id}</TableCell>
-                    <TableCell className="tabular-nums">{v.date}</TableCell>
-                    <TableCell>{v.summary}</TableCell>
-                    <TableCell>
-                      <span className="text-[10px] bg-danger/10 text-danger rounded px-1.5 py-0.5">
-                        已作废 · 等待凭证整理
-                      </span>
-                    </TableCell>
-                  </TableRow>
+            {isLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-8 w-full" />
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            ) : isError ? (
+              <Alert variant="destructive">
+                <AlertTitle>数据加载失败</AlertTitle>
+                <AlertDescription>{errorMsg || '无法获取作废凭证列表'}</AlertDescription>
+              </Alert>
+            ) : voidedItems.length === 0 ? (
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                {periodLabel} 暂无已作废的凭证
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={
+                          voidedItems.length > 0 && selected.size === voidedItems.length
+                        }
+                        onCheckedChange={toggleAll}
+                      />
+                    </TableHead>
+                    <TableHead>原凭证字号</TableHead>
+                    <TableHead>日期</TableHead>
+                    <TableHead>摘要</TableHead>
+                    <TableHead>作废状态</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {voidedItems.map((v) => (
+                    <TableRow key={String(v.id)}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selected.has(v.voucherNo)}
+                          onCheckedChange={() => toggleSelect(v.voucherNo)}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">{fmtVoucherNo(v)}</TableCell>
+                      <TableCell className="tabular-nums">{fmtDate(v.voucherDate)}</TableCell>
+                      <TableCell>{v.summary}</TableCell>
+                      <TableCell>
+                        <span className="text-[10px] bg-danger/10 text-danger rounded px-1.5 py-0.5">
+                          已作废{v.voucherDate ? ` · ${fmtDate(v.voucherDate)}` : ''}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>

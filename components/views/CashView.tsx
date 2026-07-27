@@ -1,9 +1,14 @@
 'use client';
 
+import { toast } from 'sonner';
+import { trpc } from '@/lib/trpc-client';
 import { useAppStore } from '@/lib/store';
+import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import {
   TrendingUp,
   TrendingDown,
@@ -19,6 +24,7 @@ import {
   Zap,
   CheckCircle2,
   FileUp,
+  Loader2,
 } from 'lucide-react';
 import {
   LineChart,
@@ -30,13 +36,12 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  Legend,
-  Cell,
   LabelList,
 } from 'recharts';
 
 // ============================================================
-// Inline data
+// Demo chart data — no time-series API for balance trend / cash flow structure yet.
+// These would be replaced by dedicated aggregation endpoints in production.
 // ============================================================
 
 const BALANCE_TREND = [
@@ -60,43 +65,9 @@ const CASH_FLOW_STRUCTURE = [
   total: row.经营 + row.投资 + row.筹资,
 }));
 
-const BANK_ACCOUNTS = [
-  {
-    name: '基本户·招商银行',
-    account: '6225****7812',
-    balance: 528.64,
-    status: '正常' as const,
-  },
-  {
-    name: '一般户·工商银行',
-    account: '6212****3390',
-    balance: 274.02,
-    status: '正常' as const,
-  },
-  {
-    name: '支付宝企业账户',
-    account: 'yd-finance@demo.cn',
-    balance: 40.0,
-    status: '正常' as const,
-  },
-];
-
-const FUND_GAP_ITEMS = [
-  { date: '07-14', label: '客户回款', amount: 68.0, type: 'inflow' as const },
-  { date: '07-15', label: '供应商集中付款', amount: -126.0, type: 'outflow' as const },
-  { date: '07-18', label: '预计资金缺口', amount: -42.0, type: 'deficit' as const },
-  { date: '07-22', label: '计划回款', amount: 184.0, type: 'inflow' as const },
-  { date: '07-28', label: '月度付款', amount: -86.0, type: 'outflow' as const },
-  { date: '08-02', label: '大客户回款', amount: 126.0, type: 'inflow' as const },
-  { date: '08-08', label: '税费缴纳', amount: -52.0, type: 'outflow' as const },
-];
-
-const TODAY_ACTIVITY = [
-  { name: '华东优选', amount: 32.0, incoming: true },
-  { name: '迅达物流', amount: -18.64, incoming: false },
-  { name: '华南贸易', amount: 26.0, incoming: true },
-  { name: '天润物业', amount: -8.8, incoming: false },
-];
+// ============================================================
+// Static business-finance penetration data (no API)
+// ============================================================
 
 const BUSINESS_FINANCE_ITEMS = [
   { label: '业务回款穿透', value: '86%', desc: '订单到回款的自动化覆盖率' },
@@ -109,14 +80,35 @@ const BUSINESS_FINANCE_ITEMS = [
 // Helpers
 // ============================================================
 
-function amountColor(type: 'inflow' | 'outflow' | 'deficit'): string {
-  switch (type) {
-    case 'inflow':
-      return 'text-success';
-    case 'outflow':
-      return 'text-foreground';
-    case 'deficit':
-      return 'text-destructive';
+/** Format a Decimal / number / string to ¥X.XX (raw value, not 万元) */
+function fmtAmount(n: unknown): string {
+  const v = Number(n ?? 0);
+  return `¥${v.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`;
+}
+
+/** Format a Decimal / number / string to 万元 with one decimal */
+function fmtWan(n: unknown): string {
+  const v = Number(n ?? 0) / 10000;
+  return `¥${v.toFixed(2)}万`;
+}
+
+/** Format a date-like value to YYYY-MM-DD */
+function fmtDate(d: unknown): string {
+  if (d instanceof Date) return d.toISOString().slice(0, 10);
+  const s = String(d ?? '');
+  return s.slice(0, 10);
+}
+
+function statusBadge(s: string | undefined): { label: string; cls: string } {
+  switch (s) {
+    case 'pending':
+      return { label: '待付款', cls: 'text-warning' };
+    case 'processing':
+      return { label: '处理中', cls: 'text-primary' };
+    case 'completed':
+      return { label: '已完成', cls: 'text-success' };
+    default:
+      return { label: s ?? '—', cls: 'text-muted-foreground' };
   }
 }
 
@@ -142,17 +134,16 @@ function CashFlowTooltip({
 }) {
   if (!active || !payload || payload.length === 0) return null;
 
-  // 还原为经营 / 投资 / 筹资的固定顺序
   const order = ['经营', '投资', '筹资'];
   const ordered = order
     .map((k) => payload.find((p) => p.dataKey === k))
     .filter((p): p is CashFlowTooltipPayloadItem => Boolean(p));
   const total = ordered.reduce((sum, p) => sum + p.value, 0);
 
-  const labelMap: Record<string, { color: string; dot: string }> = {
-    经营: { color: 'var(--chart-1)', dot: 'bg-[--chart-1]' },
-    投资: { color: 'var(--chart-3)', dot: 'bg-[--chart-3]' },
-    筹资: { color: 'var(--chart-4)', dot: 'bg-[--chart-4]' },
+  const labelMap: Record<string, { dot: string }> = {
+    经营: { dot: 'bg-[--chart-1]' },
+    投资: { dot: 'bg-[--chart-3]' },
+    筹资: { dot: 'bg-[--chart-4]' },
   };
 
   return (
@@ -269,13 +260,12 @@ function StatCard({
           </span>
           {trend && (
             <span
-              className={`text-xs font-medium inline-flex items-center gap-0.5 ${
-                trend === 'up'
-                  ? 'text-success'
-                  : trend === 'down'
-                    ? 'text-destructive'
-                    : 'text-muted-foreground'
-              }`}
+              className={cn(
+                'text-xs font-medium inline-flex items-center gap-0.5',
+                trend === 'up' && 'text-success',
+                trend === 'down' && 'text-destructive',
+                trend === 'neutral' && 'text-muted-foreground',
+              )}
             >
               {trend === 'up' ? (
                 <TrendingUp className="h-3 w-3" />
@@ -292,12 +282,90 @@ function StatCard({
 }
 
 // ============================================================
+// Loading / Error / Empty states
+// ============================================================
+
+function StatCardSkeleton() {
+  return (
+    <Card size="sm">
+      <CardHeader className="pb-1">
+        <Skeleton className="h-3 w-20" />
+      </CardHeader>
+      <CardContent>
+        <Skeleton className="h-7 w-28" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function AccountCardSkeleton() {
+  return (
+    <Card size="sm">
+      <CardContent className="py-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-6 w-20" />
+          </div>
+          <Skeleton className="h-9 w-9 rounded-lg" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================
 // CashView
 // ============================================================
 
 export function CashView() {
   const { currentRole } = useAppStore();
   const isCashier = currentRole === '出纳';
+  const utils = trpc.useUtils();
+
+  // ─── Queries ─────────────────────────────────────────────────────
+
+  const accountsQuery = trpc.bank.listAccounts.useQuery();
+  const statsQuery = trpc.payment.stats.useQuery();
+  const pendingQuery = trpc.payment.list.useQuery({
+    group: 'pending',
+    limit: 10,
+    offset: 0,
+  });
+  const completedQuery = trpc.payment.list.useQuery({
+    group: 'completed',
+    limit: 8,
+    offset: 0,
+  });
+
+  // ─── Mutation ────────────────────────────────────────────────────
+
+  const executeMutation = trpc.payment.execute.useMutation({
+    onSuccess: () => {
+      toast.success('付款已执行');
+      utils.payment.list.invalidate();
+      utils.payment.stats.invalidate();
+      utils.bank.listAccounts.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message || '付款执行失败，请重试');
+    },
+  });
+
+  // ─── Computed ────────────────────────────────────────────────────
+
+  const accounts = accountsQuery.data ?? [];
+  const availableFunds = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
+  const stats = statsQuery.data ?? { pending: 0, processing: 0, completed: 0 };
+  const pendingTasks = pendingQuery.data?.items ?? [];
+  const completedTasks = completedQuery.data?.items ?? [];
+
+  const handleExecute = (id: unknown) => {
+    executeMutation.mutate({ id: Number(id) });
+  };
+
+  // ─── Render ──────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col h-full overflow-y-auto custom-scrollbar">
@@ -341,7 +409,9 @@ export function CashView() {
                 需关注
               </Badge>
               <p className="text-sm text-foreground">
-                现金流整体健康，但7月18日存在短期缺口需提前安排。
+                {stats.pending > 0
+                  ? `当前有 ${stats.pending} 笔待付款任务需处理，请及时安排资金。`
+                  : '现金流整体健康，暂无异常待付款项。'}
               </p>
             </div>
           </div>
@@ -358,43 +428,63 @@ export function CashView() {
         {/* ================================================================ */}
         {/* Stat Cards                                                       */}
         {/* ================================================================ */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-          <StatCard
-            title="可用资金"
-            value="¥842.66万"
-            sub="+3.2%"
-            trend="up"
-            icon={Wallet}
-          />
-          <StatCard
-            title="7日资金缺口"
-            value="¥42.00万"
-            sub="7月18日"
-            trend="down"
-            icon={AlertTriangle}
-          />
-          <StatCard
-            title="本月净流入"
-            value="+¥54.36万"
-            sub="+18.4%"
-            trend="up"
-            icon={ArrowUpRight}
-          />
-          <StatCard
-            title="现金周转天数"
-            value="24天"
-            sub="-2天"
-            trend="down"
-            icon={Calendar}
-          />
-          <StatCard
-            title="现金收入比"
-            value="1.28"
-            sub="+0.04"
-            trend="up"
-            icon={TrendingUp}
-          />
-        </div>
+        {accountsQuery.isLoading || statsQuery.isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+          </div>
+        ) : accountsQuery.isError ? (
+          <Alert variant="destructive">
+            <AlertTitle>账户数据加载失败</AlertTitle>
+            <AlertDescription>{accountsQuery.error.message}</AlertDescription>
+          </Alert>
+        ) : statsQuery.isError ? (
+          <Alert variant="destructive">
+            <AlertTitle>统计数据加载失败</AlertTitle>
+            <AlertDescription>{statsQuery.error.message}</AlertDescription>
+          </Alert>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <StatCard
+              title="可用资金"
+              value={fmtWan(availableFunds)}
+              sub={`${accounts.length}个账户`}
+              trend="neutral"
+              icon={Wallet}
+            />
+            <StatCard
+              title="待付款任务"
+              value={`${stats.pending}笔`}
+              sub={stats.pending > 0 ? '需处理' : '无待办'}
+              trend={stats.pending > 0 ? 'down' : 'up'}
+              icon={AlertTriangle}
+            />
+            <StatCard
+              title="处理中"
+              value={`${stats.processing}笔`}
+              sub="进行中"
+              trend="neutral"
+              icon={ArrowUpRight}
+            />
+            <StatCard
+              title="已完成"
+              value={`${stats.completed}笔`}
+              sub="累计完成"
+              trend="up"
+              icon={Calendar}
+            />
+            <StatCard
+              title="银行账户"
+              value={`${accounts.length}个`}
+              sub="已关联"
+              trend="neutral"
+              icon={Building2}
+            />
+          </div>
+        )}
 
         {/* ================================================================ */}
         {/* Bank Accounts                                                    */}
@@ -405,47 +495,71 @@ export function CashView() {
             <h2 className="text-sm font-semibold text-foreground font-heading">
               银行账户
             </h2>
-            <Badge variant="secondary" className="text-[10px]">
-              {BANK_ACCOUNTS.length}个账户
-            </Badge>
+            {!accountsQuery.isLoading && !accountsQuery.isError && (
+              <Badge variant="secondary" className="text-[10px]">
+                {accounts.length}个账户
+              </Badge>
+            )}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {BANK_ACCOUNTS.map((account) => (
-              <Card key={account.account} size="sm" className="card-hover">
-                <CardContent className="py-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium text-foreground truncate">
-                          {account.name}
+
+          {accountsQuery.isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <AccountCardSkeleton />
+              <AccountCardSkeleton />
+              <AccountCardSkeleton />
+            </div>
+          ) : accountsQuery.isError ? (
+            <Alert variant="destructive">
+              <AlertTitle>银行账户加载失败</AlertTitle>
+              <AlertDescription>{accountsQuery.error.message}</AlertDescription>
+            </Alert>
+          ) : accounts.length === 0 ? (
+            <Alert>
+              <AlertTitle>暂无银行账户</AlertTitle>
+              <AlertDescription>请联系系统管理员添加银行账户。</AlertDescription>
+            </Alert>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {accounts.map((account) => (
+                <Card key={String(account.id)} size="sm" className="card-hover">
+                  <CardContent className="py-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-medium text-foreground truncate">
+                            {account.accountName}
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] text-success border-success/30 bg-success/5 shrink-0"
+                          >
+                            <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />
+                            {account.status}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mb-2">
+                          {account.bankName} · {account.accountNo}
+                        </p>
+                        <span className="text-lg font-bold text-foreground font-heading">
+                          {fmtAmount(account.balance)}
                         </span>
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] text-success border-success/30 bg-success/5 shrink-0"
-                        >
-                          <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />
-                          {account.status}
-                        </Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        {account.account}
-                      </p>
-                      <span className="text-lg font-bold text-foreground font-heading">
-                        ¥{account.balance.toFixed(2)}万
-                      </span>
+                      <div className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10">
+                        <CreditCard className="h-4 w-4 text-primary" />
+                      </div>
                     </div>
-                    <div className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10">
-                      <CreditCard className="h-4 w-4 text-primary" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ================================================================ */}
         {/* Charts                                                           */}
+        {/* ================================================================ */}
+        {/* NOTE: These charts use demo data. A dedicated time-series        */}
+        {/* aggregation endpoint would be needed for production use.         */}
         {/* ================================================================ */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Balance Trend Chart */}
@@ -456,7 +570,7 @@ export function CashView() {
                 资金余额历史趋势
               </CardTitle>
               <CardDescription className="text-xs flex items-center gap-2">
-                近6个月余额变化（单位：万元）
+                近6个月余额变化（演示数据，单位：万元）
                 <Badge variant="secondary" className="text-[10px] bg-success/10 text-success">
                   趋势上升
                 </Badge>
@@ -510,7 +624,7 @@ export function CashView() {
                 现金流结构分析
               </CardTitle>
               <CardDescription className="text-xs">
-                经营 / 投资 / 筹资活动现金流（单位：万元）
+                经营 / 投资 / 筹资活动现金流（演示数据，单位：万元）
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-2">
@@ -611,7 +725,6 @@ export function CashView() {
                         }}
                         formatter={(v: any) => (Number(v) >= 50 ? v : '')}
                       />
-                      {/* 月度合计标签 —— 柱顶 */}
                       <LabelList
                         dataKey="total"
                         position="top"
@@ -633,98 +746,154 @@ export function CashView() {
         </div>
 
         {/* ================================================================ */}
-        {/* Fund Gap Predictions                                             */}
+        {/* Pending Payment Tasks (replaces Fund Gap Predictions)            */}
         {/* ================================================================ */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-warning" />
-              资金缺口预测
+              待付款任务
             </CardTitle>
             <CardDescription className="text-xs">
-              未来30天预计资金流入与流出节点
+              需要执行的付款任务，请确认后逐笔执行。
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <div className="min-w-[640px]">
-                {/* Header */}
-                <div className="grid grid-cols-[100px_1fr_120px] gap-3 px-2 py-1.5 text-xs text-muted-foreground font-medium border-b pb-2">
-                  <span>日期</span>
-                  <span>事项</span>
-                  <span className="text-right">金额</span>
-                </div>
-                {/* Items */}
-                <div className="divide-y divide-border/50">
-                  {FUND_GAP_ITEMS.map((item, i) => (
-                    <div
-                      key={i}
-                      className="grid grid-cols-[100px_1fr_120px] gap-3 px-2 py-2.5 text-sm items-center hover:bg-muted/40 rounded transition-colors"
-                    >
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        {item.date}
-                      </span>
-                      <span className="text-foreground">{item.label}</span>
-                      <span
-                        className={`text-right font-medium tabular-nums ${amountColor(item.type)}`}
-                      >
-                        {item.amount > 0 ? '+' : ''}
-                        ¥{Math.abs(item.amount).toFixed(2)}万
-                      </span>
-                    </div>
-                  ))}
+            {pendingQuery.isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+              </div>
+            ) : pendingQuery.isError ? (
+              <Alert variant="destructive">
+                <AlertTitle>待付款任务加载失败</AlertTitle>
+                <AlertDescription>{pendingQuery.error.message}</AlertDescription>
+              </Alert>
+            ) : pendingTasks.length === 0 ? (
+              <Alert>
+                <AlertTitle>暂无待付款任务</AlertTitle>
+                <AlertDescription>所有付款任务已处理完毕。</AlertDescription>
+              </Alert>
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="min-w-[640px]">
+                  {/* Header */}
+                  <div className="grid grid-cols-[1fr_120px_120px_100px] gap-3 px-2 py-1.5 text-xs text-muted-foreground font-medium border-b pb-2">
+                    <span>收款方</span>
+                    <span className="text-right">金额</span>
+                    <span className="text-right">到期日</span>
+                    <span className="text-right">操作</span>
+                  </div>
+                  {/* Items */}
+                  <div className="divide-y divide-border/50">
+                    {pendingTasks.map((task) => {
+                      const sb = statusBadge(task.paymentStatus);
+                      return (
+                        <div
+                          key={String(task.id)}
+                          className="grid grid-cols-[1fr_120px_120px_100px] gap-3 px-2 py-2.5 text-sm items-center hover:bg-muted/40 rounded transition-colors"
+                        >
+                          <div className="min-w-0">
+                            <span className="text-foreground font-medium truncate block">
+                              {task.payee}
+                            </span>
+                            {task.category && (
+                              <span className="text-xs text-muted-foreground truncate block">
+                                {task.category}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-right font-medium tabular-nums text-destructive">
+                            -{fmtAmount(task.amount)}
+                          </span>
+                          <span className="text-right text-xs text-muted-foreground tabular-nums">
+                            {task.dueDate ? fmtDate(task.dueDate) : '—'}
+                          </span>
+                          <span className="text-right">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs gap-1 h-7"
+                              disabled={executeMutation.isPending}
+                              onClick={() => handleExecute(task.id)}
+                            >
+                              {executeMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Zap className="h-3 w-3" />
+                              )}
+                              执行
+                            </Button>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
         {/* ================================================================ */}
-        {/* Today's Account Activity                                        */}
+        {/* Recent Completed Payments (replaces Today's Activity)            */}
         {/* ================================================================ */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Download className="h-4 w-4 text-muted-foreground" />
-              今日账户变动
+              最近付款记录
             </CardTitle>
             <CardDescription className="text-xs">
-              今日最新流水记录
+              最近完成的付款任务
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {TODAY_ACTIVITY.map((item, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border/60 hover:bg-muted/30 transition-colors"
-                >
+            {completedQuery.isLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border/60">
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <Skeleton className="h-3 w-20" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : completedQuery.isError ? (
+              <Alert variant="destructive">
+                <AlertTitle>付款记录加载失败</AlertTitle>
+                <AlertDescription>{completedQuery.error.message}</AlertDescription>
+              </Alert>
+            ) : completedTasks.length === 0 ? (
+              <Alert>
+                <AlertTitle>暂无付款记录</AlertTitle>
+                <AlertDescription>尚未有已完成的付款任务。</AlertDescription>
+              </Alert>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {completedTasks.map((task) => (
                   <div
-                    className={`flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full ${
-                      item.incoming ? 'bg-success/10' : 'bg-destructive/10'
-                    }`}
+                    key={String(task.id)}
+                    className="flex items-center gap-3 p-3 rounded-lg border border-border/60 hover:bg-muted/30 transition-colors"
                   >
-                    {item.incoming ? (
-                      <Download className="h-3.5 w-3.5 text-success rotate-180" />
-                    ) : (
-                      <Download className="h-3.5 w-3.5 text-destructive" />
-                    )}
+                    <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-success/10">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">
+                        {task.payee}
+                      </p>
+                      <p className="text-sm font-semibold tabular-nums text-muted-foreground">
+                        {fmtAmount(task.amount)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-foreground truncate">
-                      {item.name}
-                    </p>
-                    <p
-                      className={`text-sm font-semibold tabular-nums ${
-                        item.incoming ? 'text-success' : 'text-destructive'
-                      }`}
-                    >
-                      {item.incoming ? '+' : '-'}¥{Math.abs(item.amount).toFixed(2)}万
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 

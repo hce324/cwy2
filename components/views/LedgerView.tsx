@@ -6,14 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BookOpen, Download, Calendar, Building2, Search, type LucideIcon } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { BookOpen, Download, Calendar, Building2, Search } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import { trpc } from '@/lib/trpc-client';
 import { cn } from '@/lib/utils';
 
 type BookType = 'journal' | 'classify' | 'memo';
-
-type RowFlag = 'header' | 'total' | 'footer' | undefined;
 
 interface LedgerColumn {
   key: string;
@@ -22,160 +23,212 @@ interface LedgerColumn {
   mono?: boolean;
 }
 
-interface LedgerRow {
-  cells: string[];
-  flag?: RowFlag;
+// ─── Helpers ──────────────────────────────────────────────────────────
+
+function fmtVoucherNo(word: string, number: number): string {
+  return `${word}字${number}号`;
 }
 
-interface BookMeta {
-  icon: LucideIcon;
-  label: string;
-  value: string;
+function fmtDate(d: unknown): string {
+  if (d instanceof Date) return d.toISOString().slice(0, 10);
+  return String(d ?? '').slice(0, 10);
 }
 
-interface BookConfig {
-  id: BookType;
-  label: string;
+function fmtAmount(n: unknown): string {
+  const v = Number(n ?? 0);
+  if (v === 0) return '';
+  return v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtAmountAlways(n: unknown): string {
+  return Number(n ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ─── Column definitions per book type ─────────────────────────────────
+
+const columnsByType: Record<BookType, LedgerColumn[]> = {
+  journal: [
+    { key: 'entryDate', label: '日期' },
+    { key: 'voucher', label: '凭证字号' },
+    { key: 'summary', label: '摘要' },
+    { key: 'debitAmount', label: '借方发生额', align: 'right', mono: true },
+    { key: 'creditAmount', label: '贷方发生额', align: 'right', mono: true },
+    { key: 'direction', label: '方向', align: 'center' },
+    { key: 'balance', label: '余额', align: 'right', mono: true },
+  ],
+  classify: [
+    { key: 'entryDate', label: '日期' },
+    { key: 'voucher', label: '凭证字号' },
+    { key: 'subject', label: '明细科目' },
+    { key: 'summary', label: '摘要' },
+    { key: 'debitAmount', label: '借方发生额', align: 'right', mono: true },
+    { key: 'creditAmount', label: '贷方发生额', align: 'right', mono: true },
+    { key: 'direction', label: '方向', align: 'center' },
+    { key: 'balance', label: '余额', align: 'right', mono: true },
+  ],
+  memo: [
+    { key: 'entryDate', label: '登记日期' },
+    { key: 'event', label: '业务事项' },
+    { key: 'counterparty', label: '对方单位' },
+    { key: 'memoSummary', label: '摘要' },
+    { key: 'amount', label: '数量/金额', align: 'right', mono: true },
+    { key: 'keeper', label: '保管人' },
+    { key: 'note', label: '备注' },
+  ],
+};
+
+const bookLabels: Record<BookType, {
   sub: string;
+  label: string;
   desc: string;
   pageFormat: string;
   tableTitle: string;
   tableDesc: string;
-  columns: LedgerColumn[];
-  meta: BookMeta[];
-  rows: LedgerRow[];
-}
-
-const books: Record<BookType, BookConfig> = {
+}> = {
   journal: {
-    id: 'journal',
-    label: '日记账',
     sub: '日',
+    label: '日记账',
     desc: '库存现金、银行存款',
     pageFormat: '银行存款日记账（三栏式）',
     tableTitle: '三栏式银行存款日记账',
-    tableDesc: '科目：1002 银行存款　期间：2026年7月　单位：元',
-    columns: [
-      { key: 'date', label: '日期' },
-      { key: 'voucher', label: '凭证字号' },
-      { key: 'summary', label: '摘要' },
-      { key: 'debit', label: '借方发生额', align: 'right', mono: true },
-      { key: 'credit', label: '贷方发生额', align: 'right', mono: true },
-      { key: 'direction', label: '方向', align: 'center' },
-      { key: 'balance', label: '余额', align: 'right', mono: true },
-    ],
-    meta: [
-      { icon: Calendar, label: '会计期间', value: '2026-07' },
-      { icon: BookOpen, label: '会计科目', value: '1001/1002 库存现金、银行存款' },
-      { icon: Building2, label: '核算主体', value: '杭州星芒供应链有限公司' },
-    ],
-    rows: [
-      { cells: ['期初', '—', '上期结转', '', '', '借', '1,286,420.35'], flag: 'header' },
-      { cells: ['07-08', '转字096号', '收到平台结算款', '1,309,340.40', '', '借', '2,595,760.75'] },
-      { cells: ['07-12', '转字128号', '支付采购或费用款', '1,072,188.00', '', '借', '1,523,572.75'] },
-      { cells: ['07-18', '转字162号', '补充登记银行存款业务', '1,537,051.78', '', '借', '3,060,624.53'] },
-      { cells: ['07-26', '转字186号', '结转或支付银行存款', '776,412.00', '', '借', '2,284,212.53'] },
-      { cells: ['07-31', '—', '本期发生额合计', '2,846,392.18', '1,848,600.00', '借', '2,284,212.53'], flag: 'total' },
-      { cells: ['07-31', '—', '期末余额', '', '', '借', '2,284,212.53'], flag: 'footer' },
-    ],
+    tableDesc: '单位：元',
   },
   classify: {
-    id: 'classify',
-    label: '分类账簿',
     sub: '分',
+    label: '分类账簿',
     desc: '总分类账、明细分类账',
     pageFormat: '总分类账（三栏式）',
     tableTitle: '三栏式总分类账',
-    tableDesc: '科目：1002 银行存款　期间：2026年7月　单位：元',
-    columns: [
-      { key: 'date', label: '日期' },
-      { key: 'voucher', label: '凭证字号' },
-      { key: 'sub', label: '明细科目' },
-      { key: 'summary', label: '摘要' },
-      { key: 'debit', label: '借方发生额', align: 'right', mono: true },
-      { key: 'credit', label: '贷方发生额', align: 'right', mono: true },
-      { key: 'direction', label: '方向', align: 'center' },
-      { key: 'balance', label: '余额', align: 'right', mono: true },
-    ],
-    meta: [
-      { icon: Calendar, label: '会计期间', value: '2026-07' },
-      { icon: BookOpen, label: '会计科目', value: '1002 银行存款 | 资产类' },
-      { icon: Building2, label: '核算主体', value: '杭州星芒供应链有限公司' },
-    ],
-    rows: [
-      { cells: ['期初', '—', '—', '上期结转', '', '', '借', '1,286,420.35'], flag: 'header' },
-      { cells: ['07-08', '转字096号', '100201 银行存款—招商银行杭州分行', '收到平台结算款', '1,309,340.40', '', '借', '2,595,760.75'] },
-      { cells: ['07-12', '转字128号', '100202 银行存款—工商银行上海分行', '支付采购或费用款', '1,072,188.00', '', '借', '1,523,572.75'] },
-      { cells: ['07-18', '转字162号', '100203 银行存款—美元账户', '补充登记银行存款业务', '1,537,051.78', '', '借', '3,060,624.53'] },
-      { cells: ['07-26', '转字186号', '100202 银行存款—工商银行上海分行', '结转或支付银行存款', '776,412.00', '', '借', '2,284,212.53'] },
-      { cells: ['07-31', '—', '—', '本期发生额合计', '2,846,392.18', '1,848,600.00', '借', '2,284,212.53'], flag: 'total' },
-      { cells: ['07-31', '—', '—', '期末余额', '', '', '借', '2,284,212.53'], flag: 'footer' },
-    ],
+    tableDesc: '单位：元',
   },
   memo: {
-    id: 'memo',
-    label: '备查账簿',
     sub: '备',
+    label: '备查账簿',
     desc: '辅助核算、固定资产等',
     pageFormat: '备查账簿（多栏式）',
     tableTitle: '备查账簿 · 租入固定资产登记簿',
-    tableDesc: '登记主体：杭州星芒供应链有限公司　期间：2026年7月',
-    columns: [
-      { key: 'date', label: '登记日期' },
-      { key: 'event', label: '业务事项' },
-      { key: 'counterparty', label: '对方单位' },
-      { key: 'summary', label: '摘要' },
-      { key: 'amount', label: '数量/金额', align: 'right', mono: true },
-      { key: 'keeper', label: '保管人' },
-      { key: 'note', label: '备注' },
-    ],
-    meta: [
-      { icon: Calendar, label: '会计期间', value: '2026-07' },
-      { icon: BookOpen, label: '备查类型', value: '辅助核算 / 固定资产登记' },
-      { icon: Building2, label: '核算主体', value: '杭州星芒供应链有限公司' },
-    ],
-    rows: [
-      { cells: ['07-03', '租入设备', '杭州云栖科技', '融资租赁设备一台', '1台·¥360,000', '张敏', '租期24个月'] },
-      { cells: ['07-10', '收到票据', '华东优选商贸', '收到商业承兑汇票', '1张·¥680,000', '王思雨', '到期2026-10-12'] },
-      { cells: ['07-15', '股权质押', '星芒控股', '质押股份登记', '5%', '李娜', '期限12个月'] },
-      { cells: ['07-22', '委托加工', '宁波智造', '发出材料委托加工', '2批·¥142,000', '赵磊', '收回在制'] },
-      { cells: ['07-29', '保函担保', '招商银行', '借款保函担保', '¥500,000', '周涛', '连带责任'] },
-    ],
+    tableDesc: '登记主体：杭州星芒供应链有限公司',
   },
 };
 
+// ─── Helpers for row mapping ──────────────────────────────────────────
+
+/** Type for a LedgerEntry returned by the API (includes subject relation). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LedgerEntryRow = any;
+
+function mapRowToCells(entry: LedgerEntryRow, bookType: BookType): string[] {
+  const subject = entry.subject as { code: string; name: string } | undefined;
+
+  switch (bookType) {
+    case 'journal':
+      return [
+        fmtDate(entry.entryDate),
+        fmtVoucherNo(entry.voucherWord, entry.voucherNumber),
+        entry.summary ?? '',
+        fmtAmount(entry.debitAmount),
+        fmtAmount(entry.creditAmount),
+        entry.direction ?? '',
+        fmtAmount(entry.balance),
+      ];
+    case 'classify':
+      return [
+        fmtDate(entry.entryDate),
+        fmtVoucherNo(entry.voucherWord, entry.voucherNumber),
+        subject ? `${subject.code} ${subject.name}` : '—',
+        entry.summary ?? '',
+        fmtAmount(entry.debitAmount),
+        fmtAmount(entry.creditAmount),
+        entry.direction ?? '',
+        fmtAmount(entry.balance),
+      ];
+    case 'memo':
+      return [
+        fmtDate(entry.entryDate),
+        entry.summary ?? '',
+        '—',
+        entry.summary ?? '',
+        fmtAmount(Number(entry.debitAmount) || Number(entry.creditAmount)),
+        '—',
+        '—',
+      ];
+    default:
+      return [];
+  }
+}
+
+// ─── Component ────────────────────────────────────────────────────────
+
 export function LedgerView() {
   const [bookType, setBookType] = useState<BookType>('classify');
-  const book = books[bookType];
+
+  // ─── tRPC query ──────────────────────────────────────────────────
+
+  const listQuery = trpc.ledger.list.useQuery({ bookType });
+
+  const items = listQuery.data?.items ?? [];
+  const total = listQuery.data?.total ?? 0;
+  const isLoading = listQuery.isLoading;
+  const isError = listQuery.isError;
+  const errorMsg = listQuery.error?.message;
+
+  const columns = columnsByType[bookType];
+  const config = bookLabels[bookType];
+
+  // ─── Build display rows ───────────────────────────────────────────
+
+  const rows = items.map((entry) => mapRowToCells(entry, bookType));
+
+  const totalDebit = items.reduce((sum, e) => sum + Number(e.debitAmount ?? 0), 0);
+  const totalCredit = items.reduce((sum, e) => sum + Number(e.creditAmount ?? 0), 0);
+
+  // ─── Render ───────────────────────────────────────────────────────
 
   return (
     <div className="p-6 space-y-6">
+      {/* ── Header ───────────────────────────────────────────────── */}
       <div className="flex items-start justify-between">
         <div>
-          <div className="text-xs text-muted-foreground uppercase tracking-wider">ACCOUNTING BOOKS</div>
+          <div className="text-xs text-muted-foreground uppercase tracking-wider">
+            ACCOUNTING BOOKS
+          </div>
           <h1 className="page-title mt-1">会计账簿</h1>
           <p className="page-subtitle">
             按日记账、分类账簿和备查账簿组织，并根据科目性质自动选择适用账页格式。
           </p>
         </div>
-        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => toast('已导出当前账簿')}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5"
+          onClick={() => toast('已导出当前账簿')}
+        >
           <Download className="h-4 w-4" /> 导出当前账簿
         </Button>
       </div>
 
       <Separator />
 
-      {/* Rules */}
+      {/* ── Rules ────────────────────────────────────────────────── */}
       <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
-        <p><strong className="text-foreground">日记账：</strong>逐日逐笔登记库存现金和银行存款。</p>
-        <p><strong className="text-foreground">分类账簿：</strong>包括总分类账及适用不同账页格式的明细分类账。</p>
-        <p><strong className="text-foreground">备查账簿：</strong>补充登记辅助核算和需查考事项。</p>
+        <p>
+          <strong className="text-foreground">日记账：</strong>
+          逐日逐笔登记库存现金和银行存款。
+        </p>
+        <p>
+          <strong className="text-foreground">分类账簿：</strong>
+          包括总分类账及适用不同账页格式的明细分类账。
+        </p>
+        <p>
+          <strong className="text-foreground">备查账簿：</strong>
+          补充登记辅助核算和需查考事项。
+        </p>
       </div>
 
-      {/* Book type tabs */}
+      {/* ── Book type tabs ────────────────────────────────────────── */}
       <div className="flex gap-2">
-        {(Object.keys(books) as BookType[]).map((id) => {
-          const b = books[id];
+        {(Object.keys(bookLabels) as BookType[]).map((id) => {
+          const b = bookLabels[id];
           return (
             <Button
               key={id}
@@ -192,15 +245,19 @@ export function LedgerView() {
         })}
       </div>
 
-      {/* Query area */}
+      {/* ── Query area ────────────────────────────────────────────── */}
       <Card className="elevation-1">
         <CardContent className="pt-4 space-y-3">
           {bookType === 'classify' && (
             <div className="flex items-center gap-2">
               <Tabs defaultValue="general">
                 <TabsList>
-                  <TabsTrigger value="general" className="text-xs">总分类账（一级科目）</TabsTrigger>
-                  <TabsTrigger value="detail" className="text-xs">明细分类账（二/三级科目）</TabsTrigger>
+                  <TabsTrigger value="general" className="text-xs">
+                    总分类账（一级科目）
+                  </TabsTrigger>
+                  <TabsTrigger value="detail" className="text-xs">
+                    明细分类账（二/三级科目）
+                  </TabsTrigger>
                 </TabsList>
                 <TabsContent value="general" />
                 <TabsContent value="detail" />
@@ -209,76 +266,118 @@ export function LedgerView() {
           )}
 
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            {book.meta.map((m, i) => {
-              const Icon = m.icon;
-              return (
-                <div key={i} className="flex items-center gap-1.5">
-                  <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-muted-foreground">{m.label}：</span>
-                  <span className="font-medium">{m.value}</span>
-                </div>
-              );
-            })}
+            <div className="flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-muted-foreground">会计期间：</span>
+              <span className="font-medium">—</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-muted-foreground">会计科目：</span>
+              <span className="font-medium">
+                {items.length > 0 && (items[0] as LedgerEntryRow).subject
+                  ? `${(items[0] as LedgerEntryRow).subject.code} ${(items[0] as LedgerEntryRow).subject.name}`
+                  : '—'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-muted-foreground">核算主体：</span>
+              <span className="font-medium">杭州星芒供应链有限公司</span>
+            </div>
           </div>
+
           <div className="text-xs text-muted-foreground">
-            适用账页格式：{book.pageFormat}
+            适用账页格式：{config.pageFormat}
           </div>
-          <Button size="sm" className="gap-1.5" onClick={() => toast('已按当前条件查询账簿')}>
+          <Button
+            size="sm"
+            className="gap-1.5"
+            onClick={() => listQuery.refetch()}
+          >
             <Search className="h-3.5 w-3.5" /> 查询
           </Button>
         </CardContent>
       </Card>
 
-      {/* Three-column ledger */}
+      {/* ── Table card ────────────────────────────────────────────── */}
       <Card className="elevation-1">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">{book.tableTitle}</CardTitle>
-          <CardDescription>
-            {book.tableDesc}
-          </CardDescription>
+          <CardTitle className="text-base">{config.tableTitle}</CardTitle>
+          <CardDescription>{config.tableDesc}</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow className="text-[11px]">
-                {book.columns.map((col) => (
-                  <TableHead
-                    key={col.key}
-                    className={cn(
-                      col.align === 'right' && 'text-right',
-                      col.align === 'center' && 'text-center'
-                    )}
-                  >
-                    {col.label}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {book.rows.map((row, i) => (
-                <TableRow
-                  key={i}
-                  className={row.flag ? 'bg-muted/30 font-medium text-xs' : 'text-xs'}
-                >
-                  {row.cells.map((cell, j) => {
-                    const col = book.columns[j];
-                    return (
-                      <TableCell
-                        key={j}
+          {isLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-8 w-full" />
+              ))}
+            </div>
+          ) : isError ? (
+            <Alert variant="destructive">
+              <AlertTitle>数据加载失败</AlertTitle>
+              <AlertDescription>
+                {errorMsg || '无法获取账簿数据，请检查网络连接后重试'}
+              </AlertDescription>
+            </Alert>
+          ) : rows.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              暂无账簿数据
+            </div>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow className="text-[11px]">
+                    {columns.map((col) => (
+                      <TableHead
+                        key={col.key}
                         className={cn(
                           col.align === 'right' && 'text-right',
                           col.align === 'center' && 'text-center',
-                          col.mono && 'font-mono'
                         )}
                       >
-                        {cell}
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                        {col.label}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((cells, i) => (
+                    <TableRow key={i} className="text-xs">
+                      {cells.map((cell, j) => {
+                        const col = columns[j];
+                        return (
+                          <TableCell
+                            key={j}
+                            className={cn(
+                              col.align === 'right' && 'text-right',
+                              col.align === 'center' && 'text-center',
+                              col.mono && 'font-mono',
+                            )}
+                          >
+                            {cell}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {/* Totals row */}
+              {items.length > 0 && (
+                <div className="mt-2 pt-2 border-t text-xs text-muted-foreground flex flex-wrap items-center justify-end gap-6 px-4">
+                  {(bookType === 'journal' || bookType === 'classify') && (
+                    <>
+                      <span>借方合计：{fmtAmountAlways(totalDebit)}</span>
+                      <span>贷方合计：{fmtAmountAlways(totalCredit)}</span>
+                    </>
+                  )}
+                  <span>共 {total} 条记录</span>
+                </div>
+              )}
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

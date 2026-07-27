@@ -6,15 +6,28 @@
 
 | 类别 | 方案 |
 |:---|:---|
-| 框架 | Next.js 16 + React 19 + TypeScript |
-| 样式 | Tailwind CSS v4 |
-| 组件库 | shadcn/ui（Radix UI） |
+| 框架 | Next.js 16（App Router）+ React 19 + TypeScript（strict） |
+| 样式 | Tailwind CSS v4（CSS-first，`@tailwindcss/postcss`） |
+| 组件库 | shadcn/ui |
 | 设计系统 | Material Design 3 |
-| 状态管理 | Zustand |
-| 图表 | Recharts |
+| 状态管理 | Zustand（客户端全局）+ TanStack Query（服务端缓存） |
+| 数据请求 / API | tRPC v11 + superjson + zod |
+| 数据库 | Prisma 5（ORM）+ MySQL 8.0+（`relationMode=prisma`，无物理外键） |
+| 认证 | NextAuth v5（Auth.js）+ `@auth/prisma-adapter` |
+| 图表 | Recharts 3 |
 | 图标 | Lucide React |
 | 通知 | Sonner |
 | 主题 | next-themes（亮色 / 暗色） |
+
+## 后端与数据层
+
+项目为**全栈 TypeScript**——前后端共用一套类型，通过 tRPC 实现端到端类型安全：
+
+- **API（tRPC v11）** — 后端 procedure 定义在 `lib/trpc-server.ts`，前端经 `lib/trpc-client.ts` 调用；入参用 `zod` 校验、传输用 `superjson` 序列化。
+- **ORM 与数据库** — `Prisma 5` 连接 **MySQL 8.0+**，`prisma/schema.prisma` 定义 65 张业务表，采用 `relationMode=prisma`（逻辑关联、无物理外键）。
+- **多租户** — `lib/tenant.ts` 的 `tenantWhere(companyId)` 为所有查询注入 `company_id` 过滤，演示数据 `company_id = 1`。
+- **认证** — `NextAuth v5（Auth.js）` + `@auth/prisma-adapter`，配置见 `server/auth.ts`。
+- **演示数据** — `prisma/seed.ts` 灌基础表，`scripts/seed-berry-2025h1.sql` 灌入贝特瑞 2025H1 全量数据（收入约 78 亿量级）；完整初始化见下方「快速开始」。
 
 ## 功能模块
 
@@ -72,44 +85,65 @@
 ## 快速开始
 
 ```bash
-# 安装依赖
+# 1. 安装依赖
 npm install
 
-# 启动开发服务器
+# 2. 配置环境变量（数据库连接等）
+cp .env.example .env
+#   按需修改 DATABASE_URL（默认 mysql://root:1234@localhost:3306/finance_cloud）
+
+# 3. 生成 Prisma Client
+npm run db:generate
+
+# 4. 初始化演示数据库（基础表 + 贝特瑞 2025H1 全量数据）
+#   需要本地 MySQL，且 mysql CLI 在 PATH 中（缺失则仅灌基础表）
+npm run db:seed
+
+# 5. 启动开发服务器
 npm run dev
 # → http://localhost:3000
 
-# 构建生产版本
+# 生产构建与启动
 npm run build
-
-# 启动生产服务
 npm run start
 ```
+
+> 其它数据库脚本：`db:migrate` / `db:push` / `db:studio` / `db:reset`。
 
 ## 项目结构
 
 ```
-cwy4/
+cwy2/
 ├── app/
-│   ├── layout.tsx          # 根布局（字体加载 + Provider 注入）
+│   ├── layout.tsx          # 根布局（Provider 注入 + 字体）
 │   ├── page.tsx            # 首页入口（Sidebar + TopBar + 视图区）
 │   └── globals.css         # 全局样式 + Material 令牌 + 动效 + 工具类
 ├── components/
-│   ├── custom/
-│   │   └── RippleContainer.tsx  # Material 涟漪动效
-│   ├── layout/
-│   │   ├── Providers.tsx    # URL 视图恢复
-│   │   ├── Sidebar.tsx      # 侧边导航栏（分组 + 折叠 + 角色切换）
-│   │   ├── TopBar.tsx       # 顶栏（面包屑 + 搜索 + 通知 + 角色选择）
-│   │   └── AIAssistant.tsx  # AI 诊断 + 财枢问答面板
-│   ├── ui/                  # 30+ shadcn/ui 组件
-│   └── views/               # 40+ 财务视图（按需懒加载）
+│   ├── TRPCProvider.tsx    # tRPC + QueryClient + Theme Provider 注入
+│   ├── layout/             # Providers / Sidebar / TopBar / AIAssistant
+│   ├── ui/                 # 38 个 shadcn/ui 组件
+│   └── views/              # ~37 个财务视图（按需懒加载）
 ├── lib/
-│   ├── types.ts             # 核心类型（Role、ViewId、MenuItem 等）
-│   ├── navigation.ts        # 导航配置 + RBAC 权限矩阵 + 视图元数据
-│   ├── store.ts             # Zustand 全局状态
-│   └── utils.ts             # cn() 工具函数
+│   ├── types.ts            # 核心类型（Role、ViewId、MenuItem 等）
+│   ├── navigation.ts       # 导航配置 + RBAC 权限矩阵 + 视图元数据
+│   ├── store.ts            # Zustand 全局状态
+│   ├── utils.ts            # cn() 工具函数
+│   ├── trpc-server.ts      # tRPC 服务端 procedure 定义
+│   ├── trpc-client.ts      # tRPC 客户端（前端调用）
+│   ├── db.ts               # Prisma Client 实例
+│   ├── tenant.ts           # 多租户查询（company_id 过滤）
+│   ├── kpi.ts / kpi-mock.ts# KPI 业务逻辑与演示数据
+│   └── risk.ts / log.ts    # 风险分析 / 操作日志
+├── prisma/
+│   ├── schema.prisma       # 数据库表结构（65 张业务表）
+│   ├── seed.ts             # 基础数据灌库脚本
+│   └── *.sql               # 全量演示数据（贝特瑞 2025H1）
+├── server/
+│   └── auth.ts             # NextAuth 配置（Auth.js v5）
+├── scripts/
+│   └── seed-berry-2025h1.sql  # 全量 seed SQL
 ├── public/                  # 静态资源
+├── .env / .env.example      # 环境变量（DATABASE_URL 等）
 ├── CLAUDE.md                # Claude Code 约束文件
 ├── WORKBUDDY.md             # WorkBuddy 约束文件
 └── README.md                # 本文档

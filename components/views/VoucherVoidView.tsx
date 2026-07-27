@@ -1,50 +1,106 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { trpc } from '@/lib/trpc-client';
+import { cn } from '@/lib/utils';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { RippleContainer } from '@/components/custom/RippleContainer';
-import { toast } from 'sonner';
 import { Trash2, AlertTriangle, RotateCcw } from 'lucide-react';
 
-interface VoidableVoucher {
-  id: string;
-  date: string;
-  summary: string;
-  amount: string;
-  status: string;
-}
-
-// 覆盖多个月份的样本数据，便于切换会计期间时真实过滤
-const VOIDABLE_VOUCHERS: VoidableVoucher[] = [
-  { id: '记字138号', date: '2026-07-13', summary: '采购蓝牙耳机入库', amount: '¥113,000.00', status: '待审核' },
-  { id: '转字066号', date: '2026-07-12', summary: '平台服务费暂估', amount: '¥6,800.00', status: '待审核' },
-  { id: '记字121号', date: '2026-06-28', summary: '支付 6 月办公租金', amount: '¥24,000.00', status: '待审核' },
-  { id: '转字059号', date: '2026-06-25', summary: '计提 6 月固定资产折旧', amount: '¥9,420.00', status: '待审核' },
-  { id: '付字098号', date: '2026-05-20', summary: '预付二季度宽带费', amount: '¥3,600.00', status: '待审核' },
-];
+// ─── Helpers ────────────────────────────────────────────────────────
 
 const YEARS = ['2026'];
 const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
 
+function fmtVoucherNo(v: { voucherWord: string; voucherNumber: number }): string {
+  return `${v.voucherWord}字${v.voucherNumber}号`;
+}
+
+function fmtDate(d: unknown): string {
+  if (d instanceof Date) return d.toISOString().slice(0, 10);
+  return String(d ?? '').slice(0, 10);
+}
+
+function fmtAmount(n: unknown): string {
+  return `¥${Number(n ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`;
+}
+
+// ─── Component ──────────────────────────────────────────────────────
+
 export function VoucherVoidView() {
   const [year, setYear] = useState('2026');
   const [month, setMonth] = useState('07');
+  const [voidingId, setVoidingId] = useState<number | null>(null);
 
-  const filtered = useMemo(
-    () => VOIDABLE_VOUCHERS.filter(v => v.date.startsWith(`${year}-${month}`)),
-    [year, month]
+  // ─── tRPC query: fetch pending vouchers that can be voided ─────
+  const listQuery = trpc.voucher.list.useQuery({
+    auditStatus: 'pending',
+    year,
+    month,
+    limit: 100,
+    offset: 0,
+  });
+
+  // Client-side: only show vouchers that haven't been voided yet
+  const items = (listQuery.data?.items ?? []).filter(
+    (v) => v.status !== 'voided' && !v.isVoided,
   );
+
+  const isLoading = listQuery.isLoading;
+  const isError = listQuery.isError;
+  const errorMsg = listQuery.error?.message;
+
+  // ─── tRPC mutation: void a voucher ────────────────────────────────
+
+  const utils = trpc.useUtils();
+  const voidMutation = trpc.voucher.void.useMutation({
+    onSuccess: () => {
+      toast.success('作废完成：相关数据已写入共享账务数据');
+      setVoidingId(null);
+      utils.voucher.list.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message || '作废失败，请重试');
+      setVoidingId(null);
+    },
+  });
+
+  // ─── Handlers ─────────────────────────────────────────────────────
+
+  const handleVoid = (id: bigint | number) => {
+    const numId = Number(id);
+    setVoidingId(numId);
+    voidMutation.mutate({
+      id: numId,
+      reason: '用户主动作废',
+    });
+  };
 
   const handleReset = () => {
     setYear('2026');
     setMonth('07');
     toast.info('已重置为当前会计期间');
   };
+
+  // ─── Render ───────────────────────────────────────────────────────
 
   return (
     <div className="p-6 space-y-6">
@@ -58,6 +114,7 @@ export function VoucherVoidView() {
 
       <Separator />
 
+      {/* Filter bar */}
       <Card className="elevation-1">
         <CardContent className="pt-4 space-y-3">
           <div className="flex items-center gap-3 flex-wrap text-sm">
@@ -68,7 +125,7 @@ export function VoucherVoidView() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {YEARS.map(y => (
+                  {YEARS.map((y) => (
                     <SelectItem key={y} value={y}>{y}年</SelectItem>
                   ))}
                 </SelectContent>
@@ -78,7 +135,7 @@ export function VoucherVoidView() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {MONTHS.map(m => (
+                  {MONTHS.map((m) => (
                     <SelectItem key={m} value={m}>{m}月</SelectItem>
                   ))}
                 </SelectContent>
@@ -100,6 +157,7 @@ export function VoucherVoidView() {
         </CardContent>
       </Card>
 
+      {/* Voidable voucher table */}
       <Card className="elevation-1">
         <CardHeader>
           <CardTitle className="text-base">可作废凭证</CardTitle>
@@ -108,67 +166,92 @@ export function VoucherVoidView() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>凭证字号</TableHead>
-                <TableHead>日期</TableHead>
-                <TableHead>摘要</TableHead>
-                <TableHead className="text-right">金额</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead className="text-center">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-medium">{item.id}</TableCell>
-                  <TableCell>{item.date}</TableCell>
-                  <TableCell>{item.summary}</TableCell>
-                  <TableCell className="text-right font-mono">{item.amount}</TableCell>
-                  <TableCell>
-                    <span className="text-[10px] bg-warning/10 text-warning rounded px-1.5 py-0.5">{item.status}</span>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <AlertDialog>
-                      <AlertDialogTrigger>
-                        <Button variant="outline" size="sm" className="h-7 text-xs text-danger">
-                          <Trash2 className="h-3 w-3 mr-1" /> 作废此凭证
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle className="flex items-center gap-2">
-                            <AlertTriangle className="h-5 w-5 text-danger" />
-                            确认作废凭证
-                          </AlertDialogTitle>
-                          <AlertDialogDescription>
-                            作废后凭证将不再参与记账、报表和审核。作废原因和操作人将被记录在审计轨迹中。此操作不可撤销。
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>取消</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => toast('作废完成：相关数据已写入共享账务数据')}
-                            className="bg-danger hover:brightness-90"
-                          >
-                            确认作废
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </TableCell>
-                </TableRow>
+          {isLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-8 w-full" />
               ))}
-              {filtered.length === 0 && (
+            </div>
+          ) : isError ? (
+            <Alert variant="destructive">
+              <AlertTitle>数据加载失败</AlertTitle>
+              <AlertDescription>{errorMsg || '无法获取凭证列表，请检查网络连接后重试'}</AlertDescription>
+            </Alert>
+          ) : items.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              {year}年{month}月 暂无可作废的待审核凭证
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-xs text-muted-foreground py-8">
-                    {year}年{month}月 暂无可作废的待审核凭证
-                  </TableCell>
+                  <TableHead>凭证字号</TableHead>
+                  <TableHead>日期</TableHead>
+                  <TableHead>摘要</TableHead>
+                  <TableHead className="text-right">金额</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead className="text-center">操作</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {items.map((item) => (
+                  <TableRow key={String(item.id)}>
+                    <TableCell className="font-medium">
+                      {fmtVoucherNo({ voucherWord: item.voucherWord, voucherNumber: item.voucherNumber })}
+                    </TableCell>
+                    <TableCell>{fmtDate(item.voucherDate)}</TableCell>
+                    <TableCell>{item.summary}</TableCell>
+                    <TableCell className="text-right font-mono">
+                      {fmtAmount(item.debitAmount)}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-[10px] bg-warning/10 text-warning rounded px-1.5 py-0.5">
+                        待审核
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <AlertDialog>
+                        <AlertDialogTrigger>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={cn(
+                              'h-7 text-xs',
+                              'text-danger hover:bg-danger/10',
+                            )}
+                            disabled={voidMutation.isPending}
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" /> 作废此凭证
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="flex items-center gap-2">
+                              <AlertTriangle className="h-5 w-5 text-danger" />
+                              确认作废凭证
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              作废后凭证将不再参与记账、报表和审核。作废原因和操作人将被记录在审计轨迹中。此操作不可撤销。
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>取消</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleVoid(item.id)}
+                              className="bg-danger hover:brightness-90"
+                              disabled={voidMutation.isPending}
+                            >
+                              {voidingId === Number(item.id) ? '作废中...' : '确认作废'}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

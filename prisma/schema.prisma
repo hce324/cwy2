@@ -1,0 +1,1537 @@
+// ============================================================================
+// 财务云 · Prisma Schema
+// Database: MySQL 8.0+ (InnoDB / utf8mb4)
+// Tables: 55 business tables + Prisma migration table
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+// ─── Phase 2: Base Tables (10 tables) ────────────────────────────────────────
+
+model Company {
+  id             BigInt    @id @default(autoincrement())
+  name           String    @db.VarChar(255)
+  shortName      String?   @map("short_name") @db.VarChar(100)
+  taxId          String?   @map("tax_id") @db.VarChar(50)
+  legalPerson    String?   @map("legal_person") @db.VarChar(100)
+  registeredAddr String?   @map("registered_addr") @db.VarChar(512)
+  contactPhone   String?   @map("contact_phone") @db.VarChar(30)
+  status         String    @default("active") @db.VarChar(20)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  departments                 Department[]
+  employees                   Employee[]
+  users                       User[]
+  fiscalPeriods               FiscalPeriod[]
+  settlementEntities          SettlementEntity[]
+  attachments                 Attachment[]
+  accountingSubjects          AccountingSubject[]
+  openingBalances             OpeningBalance[]
+  bankAccounts                BankAccount[]
+  fundTransactions            FundTransaction[]
+  paymentTasks                PaymentTask[]
+  suppliers                   Supplier[]
+  collectedDocuments          CollectedDocument[]
+  sourceVouchers              SourceVoucher[]
+  accountingVouchers          AccountingVoucher[]
+  ledgerEntries               LedgerEntry[]
+  trialBalances               TrialBalance[]
+  monthlySnapshots            MonthlyFinancialSnapshot[]
+  profitDetails               ProfitDetail[]
+  taxFilings                  TaxFiling[]
+  closingTasks                ClosingTask[]
+  periodEndSteps              PeriodEndStep[]
+  periodEndTransfers          PeriodEndTransfer[]
+  customerReceivables         CustomerReceivable[]
+  receivableAging             ReceivableAgingSnapshot[]
+  collectorKpis               CollectorKpi[]
+  budgets                     Budget[]
+  fixedAssets                 FixedAsset[]
+  inventoryItems              InventoryItem[]
+  riskExceptions              RiskException[]
+  riskIndicators              RiskIndicator[]
+  chatMessages                ChatMessage[]
+  aiAnalysisResults           AiAnalysisResult[]
+  auditLogs                   AuditLog[]
+  accountingChecks            AccountingCheck[]
+  systemConnections           SystemConnection[]
+  importTemplates             ImportTemplate[]
+  importRecords               ImportRecord[]
+  dataDictionaryEntries       DataDictionaryEntry[]
+  cashFlowPredictions         CashFlowPrediction[]
+  bankStatements              BankStatement[]
+  platformSettlements         PlatformSettlement[]
+  supplierPayables            SupplierPayable[]
+  paymentApplications         PaymentApplication[]
+  solvencyIndicators          SolvencyIndicator[]
+  budgetExecutions            BudgetExecution[]
+  inventoryInbounds           InventoryInbound[]
+  inventoryOutbounds          InventoryOutbound[]
+  expenseReports              ExpenseReport[]
+  payrollRecords              PayrollRecord[]
+  liveRoomProfitRankings      LiveRoomProfitRanking[]
+  productProfitRankings       ProductProfitRanking[]
+  businessFinancePenetrations BusinessFinancePenetration[]
+
+  @@map("companies")
+}
+
+model Department {
+  id        BigInt    @id @default(autoincrement())
+  companyId BigInt    @map("company_id")
+  name      String    @db.VarChar(255)
+  parentId  BigInt?   @map("parent_id")
+  managerId BigInt?   @map("manager_id")
+  sortOrder Int       @default(0) @map("sort_order")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company   Company      @relation(fields: [companyId], references: [id])
+  parent    Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children  Department[] @relation("DepartmentHierarchy")
+  employees Employee[]
+
+  @@index([companyId])
+  @@index([parentId])
+  @@map("departments")
+}
+
+model Employee {
+  id           BigInt    @id @default(autoincrement())
+  companyId    BigInt    @map("company_id")
+  departmentId BigInt?   @map("department_id")
+  userId       BigInt?   @map("user_id")
+  employeeNo   String    @map("employee_no") @db.VarChar(50)
+  name         String    @db.VarChar(100)
+  phone        String?   @db.VarChar(30)
+  email        String?   @db.VarChar(255)
+  position     String?   @db.VarChar(100)
+  status       String    @default("active") @db.VarChar(20)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  company        Company         @relation(fields: [companyId], references: [id])
+  department     Department?     @relation(fields: [departmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payrollRecords PayrollRecord[]
+
+  @@unique([employeeNo])
+  @@index([companyId])
+  @@index([departmentId])
+  @@index([userId])
+  @@map("employees")
+}
+
+model User {
+  id           BigInt    @id @default(autoincrement())
+  companyId    BigInt    @map("company_id")
+  employeeId   BigInt?   @map("employee_id")
+  username     String    @db.VarChar(100)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  displayName  String    @map("display_name") @db.VarChar(100)
+  role         String    @db.VarChar(20)
+  avatarUrl    String?   @map("avatar_url") @db.VarChar(512)
+  lastLoginAt  DateTime? @map("last_login_at")
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([username])
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([role])
+  @@map("users")
+}
+
+model Role {
+  id          BigInt   @id @default(autoincrement())
+  name        String   @db.VarChar(50)
+  code        String   @db.VarChar(50)
+  description String?  @db.VarChar(512)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  permissions RolePermission[]
+
+  @@unique([code])
+  @@map("roles")
+}
+
+model Permission {
+  id        BigInt   @id @default(autoincrement())
+  code      String   @db.VarChar(100)
+  name      String   @db.VarChar(100)
+  groupName String?  @map("group_name") @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  roles RolePermission[]
+
+  @@unique([code])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           BigInt   @id @default(autoincrement())
+  roleId       BigInt   @map("role_id")
+  permissionId BigInt   @map("permission_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model FiscalPeriod {
+  id        BigInt    @id @default(autoincrement())
+  companyId BigInt    @map("company_id")
+  year      Int
+  month     Int
+  startDate DateTime  @map("start_date") @db.Date
+  endDate   DateTime  @map("end_date") @db.Date
+  isClosed  Boolean   @default(false) @map("is_closed")
+  closedAt  DateTime? @map("closed_at")
+  closedBy  BigInt?   @map("closed_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  company                     Company                      @relation(fields: [companyId], references: [id])
+  openingBalances             OpeningBalance[]
+  accountingVouchers          AccountingVoucher[]
+  cashFlowPredictions         CashFlowPrediction[]
+  bankStatements              BankStatement[]
+  platformSettlements         PlatformSettlement[]
+  ledgerEntries               LedgerEntry[]
+  trialBalances               TrialBalance[]
+  monthlyFinancialSnapshot    MonthlyFinancialSnapshot?
+  profitDetails               ProfitDetail[]
+  receivableAgingSnapshots    ReceivableAgingSnapshot[]
+  collectorKpis               CollectorKpi[]
+  solvencyIndicators          SolvencyIndicator[]
+  budgets                     Budget[]
+  budgetExecutions            BudgetExecution[]
+  depreciationRecords         DepreciationRecord[]
+  payrollRecords              PayrollRecord[]
+  taxFilings                  TaxFiling[]
+  closingTasks                ClosingTask[]
+  periodEndSteps              PeriodEndStep[]
+  periodEndTransfers          PeriodEndTransfer[]
+  riskIndicators              RiskIndicator[]
+  aiAnalysisResults           AiAnalysisResult[]
+  accountingChecks            AccountingCheck[]
+  liveRoomProfitRankings      LiveRoomProfitRanking[]
+  productProfitRankings       ProductProfitRanking[]
+  businessFinancePenetrations BusinessFinancePenetration[]
+
+  @@unique([companyId, year, month])
+  @@index([isClosed])
+  @@map("fiscal_periods")
+}
+
+model SettlementEntity {
+  id        BigInt    @id @default(autoincrement())
+  companyId BigInt    @map("company_id")
+  name      String    @db.VarChar(255)
+  type      String    @db.VarChar(50)
+  status    String    @default("active") @db.VarChar(20)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company             Company              @relation(fields: [companyId], references: [id])
+  collectedDocuments  CollectedDocument[]
+  sourceVouchers      SourceVoucher[]
+  platformSettlements PlatformSettlement[]
+
+  @@index([companyId])
+  @@map("settlement_entities")
+}
+
+model Attachment {
+  id             BigInt    @id @default(autoincrement())
+  companyId      BigInt    @map("company_id")
+  attachableType String    @map("attachable_type") @db.VarChar(50)
+  attachableId   BigInt    @map("attachable_id")
+  fileName       String    @map("file_name") @db.VarChar(512)
+  fileUrl        String    @map("file_url") @db.VarChar(1024)
+  fileSize       Int?      @map("file_size")
+  mimeType       String?   @map("mime_type") @db.VarChar(100)
+  sortOrder      Int       @default(0) @map("sort_order")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([attachableType, attachableId])
+  @@index([companyId])
+  @@map("attachments")
+}
+
+// ─── Phase 4: Accounting Subjects + Opening Balances ────────────────────────
+
+model AccountingSubject {
+  id        BigInt    @id @default(autoincrement())
+  companyId BigInt    @map("company_id")
+  code      String    @db.VarChar(20)
+  name      String    @db.VarChar(255)
+  fullName  String?   @map("full_name") @db.VarChar(512)
+  direction String    @db.VarChar(2)
+  category  String    @db.VarChar(50)
+  parentId  BigInt?   @map("parent_id")
+  level     Int       @default(1)
+  status    String    @default("启用") @db.VarChar(10)
+  isLeaf    Boolean   @default(true) @map("is_leaf")
+  sortOrder Int       @default(0) @map("sort_order")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company         Company             @relation(fields: [companyId], references: [id])
+  parent          AccountingSubject?  @relation("SubjectHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children        AccountingSubject[] @relation("SubjectHierarchy")
+  openingBalances OpeningBalance[]
+  voucherEntries  VoucherEntry[]
+  ledgerEntries   LedgerEntry[]
+  trialBalances   TrialBalance[]
+
+  @@unique([companyId, code])
+  @@index([parentId])
+  @@index([category])
+  @@index([status])
+  @@map("accounting_subjects")
+}
+
+model OpeningBalance {
+  id             BigInt   @id @default(autoincrement())
+  companyId      BigInt   @map("company_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  subjectId      BigInt   @map("subject_id")
+  amount         Decimal  @db.Decimal(18, 2)
+  direction      String   @db.VarChar(2)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  company      Company           @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod      @relation(fields: [fiscalPeriodId], references: [id])
+  subject      AccountingSubject @relation(fields: [subjectId], references: [id])
+
+  @@unique([fiscalPeriodId, subjectId])
+  @@index([companyId])
+  @@index([subjectId])
+  @@map("opening_balances")
+}
+
+// ─── Phase 5: Vouchers ──────────────────────────────────────────────────────
+
+model CollectedDocument {
+  id                 BigInt    @id @default(autoincrement())
+  companyId          BigInt    @map("company_id")
+  settlementEntityId BigInt?   @map("settlement_entity_id")
+  name               String    @db.VarChar(255)
+  subDescription     String?   @map("sub_description") @db.VarChar(512)
+  category           String?   @db.VarChar(50)
+  source             String    @db.VarChar(255)
+  fileUrl            String?   @map("file_url") @db.VarChar(1024)
+  amount             Decimal   @db.Decimal(18, 2)
+  currency           String    @default("CNY") @db.VarChar(10)
+  documentDate       DateTime? @map("document_date") @db.Date
+  recognitionStatus  String    @default("pending") @map("recognition_status") @db.VarChar(50)
+  aiResult           String?   @map("ai_result") @db.VarChar(255)
+  isAbnormal         Boolean   @default(false) @map("is_abnormal")
+  isRead             Boolean   @default(false) @map("is_read")
+  rawDataJson        Json?     @map("raw_data_json")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
+
+  company          Company           @relation(fields: [companyId], references: [id])
+  settlementEntity SettlementEntity? @relation(fields: [settlementEntityId], references: [id])
+
+  @@index([companyId])
+  @@index([category])
+  @@index([recognitionStatus])
+  @@index([documentDate])
+  @@map("collected_documents")
+}
+
+model SourceVoucher {
+  id                 BigInt    @id @default(autoincrement())
+  companyId          BigInt    @map("company_id")
+  settlementEntityId BigInt?   @map("settlement_entity_id")
+  voucherNo          String    @map("voucher_no") @db.VarChar(30)
+  itemDescription    String    @map("item_description") @db.VarChar(512)
+  businessDate       DateTime  @map("business_date") @db.Date
+  amount             Decimal   @db.Decimal(18, 2)
+  includedDocuments  String?   @map("included_documents") @db.VarChar(512)
+  riskStatus         String    @default("待确认") @map("risk_status") @db.VarChar(50)
+  businessEntity     String?   @map("business_entity") @db.VarChar(255)
+  counterparty       String?   @db.VarChar(255)
+  handlerName        String?   @map("handler_name") @db.VarChar(100)
+  handlerDepartment  String?   @map("handler_department") @db.VarChar(100)
+  status             String    @default("待处理") @db.VarChar(50)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
+
+  company             Company                     @relation(fields: [companyId], references: [id])
+  settlementEntity    SettlementEntity?           @relation(fields: [settlementEntityId], references: [id])
+  businessFacts       VoucherBusinessFact[]
+  verificationResults VoucherVerificationResult[]
+
+  @@unique([voucherNo])
+  @@index([companyId])
+  @@index([status])
+  @@index([businessDate])
+  @@map("source_vouchers")
+}
+
+model VoucherBusinessFact {
+  id                  BigInt   @id @default(autoincrement())
+  voucherId           BigInt   @map("voucher_id")
+  purchaseContent     String?  @map("purchase_content") @db.VarChar(512)
+  quantity            String?  @db.VarChar(100)
+  deliveryLocation    String?  @map("delivery_location") @db.VarChar(255)
+  contractOrderNo     String?  @map("contract_order_no") @db.VarChar(100)
+  inspectionReceiptNo String?  @map("inspection_receipt_no") @db.VarChar(100)
+  invoiceNo           String?  @map("invoice_no") @db.VarChar(100)
+  taxTotal            Decimal? @map("tax_total") @db.Decimal(18, 2)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  voucher SourceVoucher @relation(fields: [voucherId], references: [id])
+
+  @@index([voucherId])
+  @@map("voucher_business_facts")
+}
+
+model VoucherVerificationResult {
+  id        BigInt   @id @default(autoincrement())
+  voucherId BigInt   @map("voucher_id")
+  checkItem String   @map("check_item") @db.VarChar(512)
+  isPassed  Boolean  @default(true) @map("is_passed")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  voucher SourceVoucher @relation(fields: [voucherId], references: [id])
+
+  @@index([voucherId])
+  @@map("voucher_verification_results")
+}
+
+model AccountingVoucher {
+  id              BigInt    @id @default(autoincrement())
+  companyId       BigInt    @map("company_id")
+  fiscalPeriodId  BigInt    @map("fiscal_period_id")
+  sourceVoucherId BigInt?   @map("source_voucher_id")
+  voucherNo       String    @map("voucher_no") @db.VarChar(30)
+  voucherWord     String    @map("voucher_word") @db.VarChar(10)
+  voucherNumber   Int       @map("voucher_number")
+  voucherDate     DateTime  @map("voucher_date") @db.Date
+  summary         String    @db.VarChar(512)
+  debitAmount     Decimal   @default(0) @map("debit_amount") @db.Decimal(18, 2)
+  creditAmount    Decimal   @default(0) @map("credit_amount") @db.Decimal(18, 2)
+  attachmentCount Int       @default(0) @map("attachment_count")
+  status          String    @default("draft") @db.VarChar(20)
+  auditStatus     String    @default("pending") @map("audit_status") @db.VarChar(20)
+  category        String?   @db.VarChar(50)
+  creatorId       BigInt?   @map("creator_id")
+  reviewerId      BigInt?   @map("reviewer_id")
+  signerId        BigInt?   @map("signer_id")
+  isVoided        Boolean   @default(false) @map("is_voided")
+  voidReason      String?   @map("void_reason") @db.VarChar(512)
+  sourceType      String?   @map("source_type") @db.VarChar(50)
+  flowNo          String?   @map("flow_no") @db.VarChar(50)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  company      Company            @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod       @relation(fields: [fiscalPeriodId], references: [id])
+  entries      VoucherEntry[]
+  signatures   VoucherSignature[]
+
+  @@unique([voucherNo])
+  @@index([companyId])
+  @@index([fiscalPeriodId])
+  @@index([status])
+  @@index([voucherDate])
+  @@map("accounting_vouchers")
+}
+
+model VoucherEntry {
+  id           BigInt   @id @default(autoincrement())
+  voucherId    BigInt   @map("voucher_id")
+  subjectId    BigInt   @map("subject_id")
+  summary      String?  @db.VarChar(512)
+  debitAmount  Decimal  @default(0) @map("debit_amount") @db.Decimal(18, 2)
+  creditAmount Decimal  @default(0) @map("credit_amount") @db.Decimal(18, 2)
+  direction    String   @db.VarChar(2)
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  voucher AccountingVoucher @relation(fields: [voucherId], references: [id])
+  subject AccountingSubject @relation(fields: [subjectId], references: [id])
+
+  @@index([voucherId])
+  @@index([subjectId])
+  @@map("voucher_entries")
+}
+
+model VoucherSignature {
+  id            BigInt   @id @default(autoincrement())
+  voucherId     BigInt   @map("voucher_id")
+  signerId      BigInt   @map("signer_id")
+  signedAt      DateTime @map("signed_at")
+  paymentStatus String?  @map("payment_status") @db.VarChar(20)
+  note          String?  @db.VarChar(512)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  voucher AccountingVoucher @relation(fields: [voucherId], references: [id])
+
+  @@index([voucherId])
+  @@index([signerId])
+  @@map("voucher_signatures")
+}
+
+// ─── Phase 6: Funds Management ───────────────────────────────────────────────
+
+model BankAccount {
+  id          BigInt    @id @default(autoincrement())
+  companyId   BigInt    @map("company_id")
+  accountName String    @map("account_name") @db.VarChar(255)
+  accountNo   String    @map("account_no") @db.VarChar(100)
+  bankName    String    @map("bank_name") @db.VarChar(255)
+  accountType String    @map("account_type") @db.VarChar(50)
+  currency    String    @default("CNY") @db.VarChar(10)
+  balance     Decimal   @default(0) @db.Decimal(18, 2)
+  status      String    @default("正常") @db.VarChar(20)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  company                 Company                  @relation(fields: [companyId], references: [id])
+  fundTransactions        FundTransaction[]
+  paymentTasks            PaymentTask[]
+  bankStatements          BankStatement[]
+  bankReconciliationItems BankReconciliationItem[]
+
+  @@index([companyId])
+  @@map("bank_accounts")
+}
+
+model FundTransaction {
+  id               BigInt   @id @default(autoincrement())
+  companyId        BigInt   @map("company_id")
+  bankAccountId    BigInt   @map("bank_account_id")
+  voucherId        BigInt?  @map("voucher_id")
+  transactionDate  DateTime @map("transaction_date") @db.Date
+  type             String   @db.VarChar(20)
+  amount           Decimal  @db.Decimal(18, 2)
+  counterparty     String?  @db.VarChar(255)
+  summary          String?  @db.VarChar(512)
+  isCashFlow       Boolean  @default(true) @map("is_cash_flow")
+  cashFlowCategory String?  @map("cash_flow_category") @db.VarChar(50)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  company     Company     @relation(fields: [companyId], references: [id])
+  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id])
+
+  @@index([bankAccountId])
+  @@index([transactionDate])
+  @@index([type])
+  @@map("fund_transactions")
+}
+
+model PaymentTask {
+  id             BigInt    @id @default(autoincrement())
+  companyId      BigInt    @map("company_id")
+  bankAccountId  BigInt?   @map("bank_account_id")
+  payee          String    @db.VarChar(255)
+  payeeAccount   String?   @map("payee_account") @db.VarChar(100)
+  amount         Decimal   @db.Decimal(18, 2)
+  approvalStatus String    @map("approval_status") @db.VarChar(20)
+  checkStatus    String    @map("check_status") @db.VarChar(20)
+  paymentStatus  String    @map("payment_status") @db.VarChar(20)
+  priority       String    @default("中") @db.VarChar(10)
+  dueDate        DateTime? @map("due_date") @db.Date
+  category       String?   @db.VarChar(50)
+  createdBy      BigInt?   @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  company     Company      @relation(fields: [companyId], references: [id])
+  bankAccount BankAccount? @relation(fields: [bankAccountId], references: [id])
+
+  @@index([bankAccountId])
+  @@index([paymentStatus])
+  @@map("payment_tasks")
+}
+
+model CashFlowPrediction {
+  id        BigInt   @id @default(autoincrement())
+  companyId BigInt   @map("company_id")
+  periodId  BigInt   @map("period_id")
+  dayLabel  String   @map("day_label") @db.VarChar(50)
+  dayOffset Int      @map("day_offset")
+  balance   Decimal  @db.Decimal(18, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  company Company      @relation(fields: [companyId], references: [id])
+  period  FiscalPeriod @relation(fields: [periodId], references: [id])
+
+  @@index([periodId])
+  @@map("cash_flow_predictions")
+}
+
+// ─── Phase 7: Reconciliation ─────────────────────────────────────────────────
+
+model BankStatement {
+  id             BigInt   @id @default(autoincrement())
+  companyId      BigInt   @map("company_id")
+  bankAccountId  BigInt   @map("bank_account_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  statementNo    String?  @map("statement_no") @db.VarChar(100)
+  totalEntries   Int      @default(0) @map("total_entries")
+  totalDebit     Decimal  @default(0) @map("total_debit") @db.Decimal(18, 2)
+  totalCredit    Decimal  @default(0) @map("total_credit") @db.Decimal(18, 2)
+  importStatus   String   @default("pending") @map("import_status") @db.VarChar(20)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  company      Company                  @relation(fields: [companyId], references: [id])
+  bankAccount  BankAccount              @relation(fields: [bankAccountId], references: [id])
+  fiscalPeriod FiscalPeriod             @relation(fields: [fiscalPeriodId], references: [id])
+  items        BankReconciliationItem[]
+
+  @@index([bankAccountId])
+  @@index([fiscalPeriodId])
+  @@map("bank_statements")
+}
+
+model BankReconciliationItem {
+  id                BigInt    @id @default(autoincrement())
+  statementId       BigInt    @map("statement_id")
+  bankAccountId     BigInt    @map("bank_account_id")
+  voucherId         BigInt?   @map("voucher_id")
+  entryDate         DateTime  @map("entry_date") @db.Date
+  summary           String?   @db.VarChar(512)
+  bankAmount        Decimal   @default(0) @map("bank_amount") @db.Decimal(18, 2)
+  bookAmount        Decimal   @default(0) @map("book_amount") @db.Decimal(18, 2)
+  diffAmount        Decimal   @default(0) @map("diff_amount") @db.Decimal(18, 2)
+  type              String    @db.VarChar(20)
+  isMatched         Boolean   @default(false) @map("is_matched")
+  matchedAt         DateTime? @map("matched_at")
+  outstandingReason String?   @map("outstanding_reason") @db.VarChar(512)
+  status            String    @default("pending") @db.VarChar(20)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  statement   BankStatement @relation(fields: [statementId], references: [id])
+  bankAccount BankAccount   @relation(fields: [bankAccountId], references: [id])
+
+  @@index([statementId])
+  @@index([bankAccountId])
+  @@index([isMatched])
+  @@index([type])
+  @@map("bank_reconciliation_items")
+}
+
+model PlatformSettlement {
+  id                 BigInt   @id @default(autoincrement())
+  companyId          BigInt   @map("company_id")
+  settlementEntityId BigInt   @map("settlement_entity_id")
+  platform           String   @db.VarChar(50)
+  fiscalPeriodId     BigInt   @map("fiscal_period_id")
+  batchNo            String   @map("batch_no") @db.VarChar(100)
+  totalOrders        Int      @default(0) @map("total_orders")
+  matchedOrders      Int      @default(0) @map("matched_orders")
+  matchRate          Decimal? @map("match_rate") @db.Decimal(10, 4)
+  totalAmount        Decimal  @default(0) @map("total_amount") @db.Decimal(18, 2)
+  diffCount          Int      @default(0) @map("diff_count")
+  diffAmount         Decimal  @default(0) @map("diff_amount") @db.Decimal(18, 2)
+  status             String   @default("pending") @db.VarChar(20)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  company          Company                      @relation(fields: [companyId], references: [id])
+  settlementEntity SettlementEntity             @relation(fields: [settlementEntityId], references: [id])
+  fiscalPeriod     FiscalPeriod                 @relation(fields: [fiscalPeriodId], references: [id])
+  items            PlatformReconciliationItem[]
+
+  @@index([platform])
+  @@index([fiscalPeriodId])
+  @@map("platform_settlements")
+}
+
+model PlatformReconciliationItem {
+  id             BigInt   @id @default(autoincrement())
+  settlementId   BigInt   @map("settlement_id")
+  orderNo        String?  @map("order_no") @db.VarChar(100)
+  platformAmount Decimal  @map("platform_amount") @db.Decimal(18, 2)
+  systemAmount   Decimal  @map("system_amount") @db.Decimal(18, 2)
+  diffAmount     Decimal  @map("diff_amount") @db.Decimal(18, 2)
+  diffReason     String?  @map("diff_reason") @db.VarChar(512)
+  resolution     String?  @db.VarChar(512)
+  status         String   @default("pending") @db.VarChar(20)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  settlement PlatformSettlement @relation(fields: [settlementId], references: [id])
+
+  @@index([settlementId])
+  @@index([status])
+  @@map("platform_reconciliation_items")
+}
+
+// ─── Phase 8: Books & Reports ────────────────────────────────────────────────
+
+model LedgerEntry {
+  id             BigInt   @id @default(autoincrement())
+  companyId      BigInt   @map("company_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  subjectId      BigInt   @map("subject_id")
+  voucherId      BigInt?  @map("voucher_id")
+  entryDate      DateTime @map("entry_date") @db.Date
+  voucherWord    String?  @map("voucher_word") @db.VarChar(10)
+  voucherNumber  Int?     @map("voucher_number")
+  summary        String   @db.VarChar(512)
+  debitAmount    Decimal  @default(0) @map("debit_amount") @db.Decimal(18, 2)
+  creditAmount   Decimal  @default(0) @map("credit_amount") @db.Decimal(18, 2)
+  direction      String   @db.VarChar(2)
+  balance        Decimal  @db.Decimal(18, 2)
+  bookType       String   @default("journal") @map("book_type") @db.VarChar(20)
+  flag           String?  @db.VarChar(10)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  company      Company           @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod      @relation(fields: [fiscalPeriodId], references: [id])
+  subject      AccountingSubject @relation(fields: [subjectId], references: [id])
+
+  @@index([fiscalPeriodId])
+  @@index([subjectId])
+  @@index([entryDate])
+  @@index([bookType])
+  @@map("ledger_entries")
+}
+
+model TrialBalance {
+  id              BigInt   @id @default(autoincrement())
+  companyId       BigInt   @map("company_id")
+  fiscalPeriodId  BigInt   @map("fiscal_period_id")
+  subjectId       BigInt   @map("subject_id")
+  openingDebit    Decimal  @default(0) @map("opening_debit") @db.Decimal(18, 2)
+  openingCredit   Decimal  @default(0) @map("opening_credit") @db.Decimal(18, 2)
+  currentDebit    Decimal  @default(0) @map("current_debit") @db.Decimal(18, 2)
+  currentCredit   Decimal  @default(0) @map("current_credit") @db.Decimal(18, 2)
+  accumDebit      Decimal  @default(0) @map("accum_debit") @db.Decimal(18, 2)
+  accumCredit     Decimal  @default(0) @map("accum_credit") @db.Decimal(18, 2)
+  endingDebit     Decimal  @default(0) @map("ending_debit") @db.Decimal(18, 2)
+  endingCredit    Decimal  @default(0) @map("ending_credit") @db.Decimal(18, 2)
+  endingDirection String   @map("ending_direction") @db.VarChar(2)
+  isParent        Boolean  @default(false) @map("is_parent")
+  isBalanced      Boolean  @default(true) @map("is_balanced")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  company      Company           @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod      @relation(fields: [fiscalPeriodId], references: [id])
+  subject      AccountingSubject @relation(fields: [subjectId], references: [id])
+
+  @@unique([fiscalPeriodId, subjectId])
+  @@map("trial_balances")
+}
+
+model MonthlyFinancialSnapshot {
+  id                   BigInt   @id @default(autoincrement())
+  companyId            BigInt   @map("company_id")
+  fiscalPeriodId       BigInt   @map("fiscal_period_id")
+  revenue              Decimal  @default(0) @db.Decimal(18, 2)
+  revenueYoy           Decimal? @map("revenue_yoy") @db.Decimal(18, 2)
+  costOfGoods          Decimal  @default(0) @map("cost_of_goods") @db.Decimal(18, 2)
+  platformCommission   Decimal  @default(0) @map("platform_commission") @db.Decimal(18, 2)
+  marketingCost        Decimal  @default(0) @map("marketing_cost") @db.Decimal(18, 2)
+  logisticsCost        Decimal  @default(0) @map("logistics_cost") @db.Decimal(18, 2)
+  netProfit            Decimal  @default(0) @map("net_profit") @db.Decimal(18, 2)
+  netProfitYoy         Decimal? @map("net_profit_yoy") @db.Decimal(18, 2)
+  netMargin            Decimal? @map("net_margin") @db.Decimal(10, 4)
+  grossMargin          Decimal? @map("gross_margin") @db.Decimal(10, 4)
+  grossMarginBenchmark Decimal? @map("gross_margin_benchmark") @db.Decimal(10, 4)
+  operatingCashFlow    Decimal? @map("operating_cash_flow") @db.Decimal(18, 2)
+  openingCash          Decimal? @map("opening_cash") @db.Decimal(18, 2)
+  cashInflow           Decimal? @map("cash_inflow") @db.Decimal(18, 2)
+  cashOutflow          Decimal? @map("cash_outflow") @db.Decimal(18, 2)
+  closingCash          Decimal? @map("closing_cash") @db.Decimal(18, 2)
+  overdueRatio         Decimal? @map("overdue_ratio") @db.Decimal(10, 4)
+  fundCoverage         Decimal? @map("fund_coverage") @db.Decimal(10, 4)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@unique([fiscalPeriodId])
+  @@map("monthly_financial_snapshots")
+}
+
+model ProfitDetail {
+  id             BigInt   @id @default(autoincrement())
+  companyId      BigInt   @map("company_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  section        String   @db.VarChar(50)
+  itemLabel      String   @map("item_label") @db.VarChar(255)
+  amount         Decimal  @db.Decimal(18, 2)
+  percentage     Decimal? @db.Decimal(10, 4)
+  parentId       BigInt?  @map("parent_id")
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([fiscalPeriodId])
+  @@index([parentId])
+  @@map("profit_details")
+}
+
+// ─── Phase 9: Business Modules ───────────────────────────────────────────────
+
+// --- AR ---
+model CustomerReceivable {
+  id            BigInt    @id @default(autoincrement())
+  companyId     BigInt    @map("company_id")
+  customerName  String    @map("customer_name") @db.VarChar(255)
+  amount        Decimal   @db.Decimal(18, 2)
+  overdueDays   Int       @default(0) @map("overdue_days")
+  riskLevel     String    @map("risk_level") @db.VarChar(10)
+  contactInfo   String?   @map("contact_info") @db.VarChar(255)
+  collectorName String?   @map("collector_name") @db.VarChar(100)
+  tagsJson      Json?     @map("tags_json")
+  invoiceNo     String?   @map("invoice_no") @db.VarChar(100)
+  dueDate       DateTime? @map("due_date") @db.Date
+  status        String    @default("open") @db.VarChar(20)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  company           Company            @relation(fields: [companyId], references: [id])
+  collectionRecords CollectionRecord[]
+
+  @@index([customerName])
+  @@index([riskLevel])
+  @@index([collectorName])
+  @@map("customer_receivables")
+}
+
+model CollectionRecord {
+  id           BigInt    @id @default(autoincrement())
+  receivableId BigInt    @map("receivable_id")
+  collectorId  BigInt?   @map("collector_id")
+  actionResult String    @map("action_result") @db.VarChar(50)
+  promiseDate  DateTime? @map("promise_date") @db.Date
+  notes        String?   @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  receivable CustomerReceivable @relation(fields: [receivableId], references: [id])
+
+  @@index([receivableId])
+  @@map("collection_records")
+}
+
+model ReceivableAgingSnapshot {
+  id             BigInt   @id @default(autoincrement())
+  companyId      BigInt   @map("company_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  agingBucket    String   @map("aging_bucket") @db.VarChar(50)
+  amount         Decimal  @db.Decimal(18, 2)
+  turnoverDays   Decimal? @map("turnover_days") @db.Decimal(10, 2)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([fiscalPeriodId])
+  @@map("receivable_aging_snapshots")
+}
+
+model CollectorKpi {
+  id             BigInt   @id @default(autoincrement())
+  companyId      BigInt   @map("company_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  collectorName  String   @map("collector_name") @db.VarChar(100)
+  managedAmount  Decimal  @map("managed_amount") @db.Decimal(18, 2)
+  overdueAmount  Decimal  @map("overdue_amount") @db.Decimal(18, 2)
+  recoveryRate   Decimal  @map("recovery_rate") @db.Decimal(10, 4)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([fiscalPeriodId])
+  @@map("collector_kpis")
+}
+
+// --- AP ---
+model Supplier {
+  id            BigInt    @id @default(autoincrement())
+  companyId     BigInt    @map("company_id")
+  name          String    @db.VarChar(255)
+  contactPerson String?   @map("contact_person") @db.VarChar(100)
+  contactPhone  String?   @map("contact_phone") @db.VarChar(30)
+  address       String?   @db.VarChar(512)
+  taxId         String?   @map("tax_id") @db.VarChar(50)
+  status        String    @default("active") @db.VarChar(20)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  company             Company              @relation(fields: [companyId], references: [id])
+  payables            SupplierPayable[]
+  paymentApplications PaymentApplication[]
+
+  @@index([companyId])
+  @@map("suppliers")
+}
+
+model SupplierPayable {
+  id          BigInt    @id @default(autoincrement())
+  companyId   BigInt    @map("company_id")
+  supplierId  BigInt    @map("supplier_id")
+  amount      Decimal   @db.Decimal(18, 2)
+  dueDate     DateTime? @map("due_date") @db.Date
+  overdueDays Int       @default(0) @map("overdue_days")
+  agingBucket String?   @map("aging_bucket") @db.VarChar(50)
+  status      String    @default("open") @db.VarChar(20)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+
+  @@index([supplierId])
+  @@map("supplier_payables")
+}
+
+model PaymentApplication {
+  id              BigInt    @id @default(autoincrement())
+  companyId       BigInt    @map("company_id")
+  supplierId      BigInt    @map("supplier_id")
+  amount          Decimal   @db.Decimal(18, 2)
+  purpose         String    @db.VarChar(512)
+  applicantName   String    @map("applicant_name") @db.VarChar(100)
+  applicationDate DateTime  @map("application_date") @db.Date
+  status          String    @default("待处理") @db.VarChar(20)
+  contractNo      String?   @map("contract_no") @db.VarChar(100)
+  invoiceNo       String?   @map("invoice_no") @db.VarChar(100)
+  budgetItem      String?   @map("budget_item") @db.VarChar(255)
+  budgetRemain    Decimal?  @map("budget_remain") @db.Decimal(18, 2)
+  isRepeat        Boolean   @default(false) @map("is_repeat")
+  contractCheck   Boolean   @default(false) @map("contract_check")
+  invoiceCheck    Boolean   @default(false) @map("invoice_check")
+  budgetCheck     Boolean   @default(false) @map("budget_check")
+  repeatCheck     Boolean   @default(false) @map("repeat_check")
+  reviewerId      BigInt?   @map("reviewer_id")
+  approvedAt      DateTime? @map("approved_at")
+  paymentTaskId   BigInt?   @map("payment_task_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+
+  @@index([supplierId])
+  @@index([status])
+  @@map("payment_applications")
+}
+
+model SolvencyIndicator {
+  id             BigInt   @id @default(autoincrement())
+  companyId      BigInt   @map("company_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  indicatorName  String   @map("indicator_name") @db.VarChar(50)
+  indicatorValue String   @map("indicator_value") @db.VarChar(50)
+  status         String   @db.VarChar(20)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([fiscalPeriodId])
+  @@map("solvency_indicators")
+}
+
+// --- Budget ---
+model Budget {
+  id             BigInt   @id @default(autoincrement())
+  companyId      BigInt   @map("company_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  departmentName String   @map("department_name") @db.VarChar(255)
+  annualBudget   Decimal  @map("annual_budget") @db.Decimal(18, 2)
+  budgetCategory String   @map("budget_category") @db.VarChar(50)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  company      Company           @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod      @relation(fields: [fiscalPeriodId], references: [id])
+  executions   BudgetExecution[]
+
+  @@unique([companyId, fiscalPeriodId, departmentName, budgetCategory])
+  @@map("budgets")
+}
+
+model BudgetExecution {
+  id              BigInt   @id @default(autoincrement())
+  budgetId        BigInt   @map("budget_id")
+  companyId       BigInt   @map("company_id")
+  fiscalPeriodId  BigInt   @map("fiscal_period_id")
+  departmentName  String   @map("department_name") @db.VarChar(255)
+  usedAmount      Decimal  @default(0) @map("used_amount") @db.Decimal(18, 2)
+  reservedAmount  Decimal  @default(0) @map("reserved_amount") @db.Decimal(18, 2)
+  remainingAmount Decimal  @default(0) @map("remaining_amount") @db.Decimal(18, 2)
+  executionRate   Decimal  @default(0) @map("execution_rate") @db.Decimal(10, 4)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  budget       Budget       @relation(fields: [budgetId], references: [id])
+  company      Company      @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([budgetId])
+  @@index([fiscalPeriodId])
+  @@map("budget_executions")
+}
+
+// --- Fixed Assets ---
+model FixedAsset {
+  id                      BigInt    @id @default(autoincrement())
+  companyId               BigInt    @map("company_id")
+  assetName               String    @map("asset_name") @db.VarChar(255)
+  assetCode               String?   @map("asset_code") @db.VarChar(100)
+  category                String    @db.VarChar(50)
+  departmentName          String?   @map("department_name") @db.VarChar(255)
+  originalValue           Decimal   @map("original_value") @db.Decimal(18, 2)
+  residualValue           Decimal?  @default(0) @map("residual_value") @db.Decimal(18, 2)
+  accumulatedDepreciation Decimal   @default(0) @map("accumulated_depreciation") @db.Decimal(18, 2)
+  netValue                Decimal?  @map("net_value") @db.Decimal(18, 2)
+  usefulLifeYears         Int       @map("useful_life_years")
+  depreciationMethod      String    @default("straight_line") @map("depreciation_method") @db.VarChar(50)
+  monthlyDepreciation     Decimal?  @map("monthly_depreciation") @db.Decimal(18, 2)
+  acquisitionDate         DateTime? @map("acquisition_date") @db.Date
+  status                  String    @db.VarChar(20)
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+  deletedAt               DateTime? @map("deleted_at")
+
+  company             Company              @relation(fields: [companyId], references: [id])
+  depreciationRecords DepreciationRecord[]
+
+  @@index([category])
+  @@index([status])
+  @@map("fixed_assets")
+}
+
+model DepreciationRecord {
+  id             BigInt   @id @default(autoincrement())
+  assetId        BigInt   @map("asset_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  amount         Decimal  @db.Decimal(18, 2)
+  accumulated    Decimal  @db.Decimal(18, 2)
+  netValue       Decimal  @map("net_value") @db.Decimal(18, 2)
+  voucherId      BigInt?  @map("voucher_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  asset        FixedAsset   @relation(fields: [assetId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([assetId])
+  @@index([fiscalPeriodId])
+  @@map("depreciation_records")
+}
+
+// --- Inventory ---
+model InventoryItem {
+  id           BigInt    @id @default(autoincrement())
+  companyId    BigInt    @map("company_id")
+  skuCode      String    @map("sku_code") @db.VarChar(50)
+  skuName      String    @map("sku_name") @db.VarChar(255)
+  warehouse    String    @db.VarChar(255)
+  quantity     Int       @default(0)
+  safetyStock  Int       @default(0) @map("safety_stock")
+  unitCost     Decimal   @map("unit_cost") @db.Decimal(18, 2)
+  category     String    @db.VarChar(50)
+  turnoverDays Decimal?  @map("turnover_days") @db.Decimal(10, 2)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([skuCode])
+  @@index([warehouse])
+  @@index([category])
+  @@map("inventory_items")
+}
+
+model InventoryInbound {
+  id          BigInt    @id @default(autoincrement())
+  companyId   BigInt    @map("company_id")
+  docNo       String    @map("doc_no") @db.VarChar(50)
+  type        String    @db.VarChar(50)
+  inboundDate DateTime  @map("inbound_date") @db.Date
+  warehouse   String    @db.VarChar(255)
+  itemCount   Int       @map("item_count")
+  totalAmount Decimal   @map("total_amount") @db.Decimal(18, 2)
+  status      String    @db.VarChar(20)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([type])
+  @@index([status])
+  @@map("inventory_inbound")
+}
+
+model InventoryOutbound {
+  id           BigInt    @id @default(autoincrement())
+  companyId    BigInt    @map("company_id")
+  docNo        String    @map("doc_no") @db.VarChar(50)
+  type         String    @db.VarChar(50)
+  outboundDate DateTime  @map("outbound_date") @db.Date
+  warehouse    String    @db.VarChar(255)
+  itemCount    Int       @map("item_count")
+  totalAmount  Decimal   @map("total_amount") @db.Decimal(18, 2)
+  status       String    @db.VarChar(20)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([type])
+  @@index([status])
+  @@map("inventory_outbound")
+}
+
+// --- Expense ---
+model ExpenseReport {
+  id              BigInt    @id @default(autoincrement())
+  companyId       BigInt    @map("company_id")
+  applicantId     BigInt?   @map("applicant_id")
+  departmentName  String?   @map("department_name") @db.VarChar(255)
+  expenseType     String    @map("expense_type") @db.VarChar(50)
+  amount          Decimal   @db.Decimal(18, 2)
+  expenseDate     DateTime  @map("expense_date") @db.Date
+  description     String    @db.VarChar(512)
+  attachmentCount Int       @default(0) @map("attachment_count")
+  approvalStatus  String    @default("待审批") @map("approval_status") @db.VarChar(20)
+  paymentStatus   String?   @map("payment_status") @db.VarChar(20)
+  voucherId       BigInt?   @map("voucher_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([applicantId])
+  @@index([approvalStatus])
+  @@map("expense_reports")
+}
+
+// --- Payroll ---
+model PayrollRecord {
+  id              BigInt   @id @default(autoincrement())
+  companyId       BigInt   @map("company_id")
+  employeeId      BigInt   @map("employee_id")
+  fiscalPeriodId  BigInt   @map("fiscal_period_id")
+  baseSalary      Decimal  @default(0) @map("base_salary") @db.Decimal(18, 2)
+  bonus           Decimal  @default(0) @db.Decimal(18, 2)
+  allowance       Decimal  @default(0) @db.Decimal(18, 2)
+  deduction       Decimal  @default(0) @db.Decimal(18, 2)
+  socialInsurance Decimal  @default(0) @map("social_insurance") @db.Decimal(18, 2)
+  taxDeducted     Decimal  @default(0) @map("tax_deducted") @db.Decimal(18, 2)
+  netPay          Decimal  @map("net_pay") @db.Decimal(18, 2)
+  voucherId       BigInt?  @map("voucher_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  employee     Employee     @relation(fields: [employeeId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([employeeId])
+  @@index([fiscalPeriodId])
+  @@map("payroll_records")
+}
+
+// --- Tax ---
+model TaxFiling {
+  id             BigInt    @id @default(autoincrement())
+  companyId      BigInt    @map("company_id")
+  fiscalPeriodId BigInt    @map("fiscal_period_id")
+  taxType        String    @map("tax_type") @db.VarChar(10)
+  formName       String    @map("form_name") @db.VarChar(255)
+  formDetail     String?   @map("form_detail") @db.VarChar(512)
+  taxPeriodFrom  DateTime  @map("tax_period_from") @db.Date
+  taxPeriodTo    DateTime  @map("tax_period_to") @db.Date
+  filingDeadline DateTime  @map("filing_deadline") @db.Date
+  outputTax      Decimal?  @map("output_tax") @db.Decimal(18, 2)
+  inputTax       Decimal?  @map("input_tax") @db.Decimal(18, 2)
+  taxPayable     Decimal?  @map("tax_payable") @db.Decimal(18, 2)
+  taxDiff        Decimal?  @map("tax_diff") @db.Decimal(18, 2)
+  diffNote       String?   @map("diff_note") @db.VarChar(512)
+  status         String    @default("待复核") @db.VarChar(20)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([fiscalPeriodId])
+  @@index([status])
+  @@index([taxType])
+  @@map("tax_filings")
+}
+
+// --- Month-End Closing ---
+model ClosingTask {
+  id             BigInt    @id @default(autoincrement())
+  companyId      BigInt    @map("company_id")
+  fiscalPeriodId BigInt    @map("fiscal_period_id")
+  roleTarget     String    @map("role_target") @db.VarChar(20)
+  priority       String    @db.VarChar(10)
+  title          String    @db.VarChar(512)
+  module         String?   @db.VarChar(255)
+  deadline       String?   @db.VarChar(100)
+  isCompleted    Boolean   @default(false) @map("is_completed")
+  completedAt    DateTime? @map("completed_at")
+  completedBy    BigInt?   @map("completed_by")
+  sortOrder      Int       @default(0) @map("sort_order")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([fiscalPeriodId])
+  @@index([roleTarget])
+  @@map("closing_tasks")
+}
+
+model PeriodEndStep {
+  id             BigInt   @id @default(autoincrement())
+  companyId      BigInt   @map("company_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  stepLabel      String   @map("step_label") @db.VarChar(50)
+  status         String   @db.VarChar(20)
+  detail         String?  @db.VarChar(255)
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([fiscalPeriodId])
+  @@map("period_end_steps")
+}
+
+model PeriodEndTransfer {
+  id             BigInt   @id @default(autoincrement())
+  companyId      BigInt   @map("company_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  transferType   String   @map("transfer_type") @db.VarChar(10)
+  name           String   @db.VarChar(50)
+  description    String?  @db.VarChar(512)
+  amount         Decimal  @db.Decimal(18, 2)
+  status         String   @db.VarChar(20)
+  voucherId      BigInt?  @map("voucher_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([fiscalPeriodId])
+  @@index([transferType])
+  @@map("period_end_transfers")
+}
+
+// ─── Phase 10: System / Cross-cutting ────────────────────────────────────────
+
+model RiskException {
+  id            BigInt    @id @default(autoincrement())
+  companyId     BigInt    @map("company_id")
+  exceptionType String    @map("exception_type") @db.VarChar(50)
+  title         String    @db.VarChar(512)
+  description   String    @db.Text
+  riskLevel     String    @map("risk_level") @db.VarChar(10)
+  detectedAt    DateTime  @map("detected_at")
+  assignee      String?   @db.VarChar(100)
+  status        String    @default("open") @db.VarChar(20)
+  resolution    String?   @db.Text
+  resolvedAt    DateTime? @map("resolved_at")
+  resolvedBy    BigInt?   @map("resolved_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([exceptionType])
+  @@index([riskLevel])
+  @@index([status])
+  @@map("risk_exceptions")
+}
+
+model RiskIndicator {
+  id             BigInt   @id @default(autoincrement())
+  companyId      BigInt   @map("company_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  indicatorGroup String   @map("indicator_group") @db.VarChar(50)
+  indicatorName  String   @map("indicator_name") @db.VarChar(50)
+  indicatorValue String   @map("indicator_value") @db.VarChar(50)
+  targetRange    String?  @map("target_range") @db.VarChar(50)
+  assessment     String   @db.VarChar(20)
+  isWarning      Boolean  @default(false) @map("is_warning")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([fiscalPeriodId])
+  @@map("risk_indicators")
+}
+
+model ChatMessage {
+  id          BigInt   @id @default(autoincrement())
+  companyId   BigInt   @map("company_id")
+  userId      BigInt   @map("user_id")
+  sessionId   String   @map("session_id") @db.VarChar(64)
+  role        String   @db.VarChar(10)
+  content     String   @db.Text
+  timestampMs BigInt   @map("timestamp_ms")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([sessionId])
+  @@index([userId])
+  @@map("chat_messages")
+}
+
+model AiAnalysisResult {
+  id             BigInt   @id @default(autoincrement())
+  companyId      BigInt   @map("company_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  module         String   @db.VarChar(100)
+  status         String   @db.VarChar(20)
+  conclusion     String   @db.Text
+  analysisCount  Int      @default(0) @map("analysis_count")
+  warningCount   Int      @default(0) @map("warning_count")
+  findingsJson   Json?    @map("findings_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([fiscalPeriodId])
+  @@map("ai_analysis_results")
+}
+
+model AuditLog {
+  id           BigInt   @id @default(autoincrement())
+  companyId    BigInt   @map("company_id")
+  userId       BigInt?  @map("user_id")
+  action       String   @db.VarChar(50)
+  entityType   String   @map("entity_type") @db.VarChar(50)
+  entityId     BigInt?  @map("entity_id")
+  oldValueJson Json?    @map("old_value_json")
+  newValueJson Json?    @map("new_value_json")
+  ipAddress    String?  @map("ip_address") @db.VarChar(50)
+  userAgent    String?  @map("user_agent") @db.VarChar(512)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model AccountingCheck {
+  id             BigInt   @id @default(autoincrement())
+  companyId      BigInt   @map("company_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  checkType      String   @map("check_type") @db.VarChar(50)
+  isPassed       Boolean  @map("is_passed")
+  details        String?  @db.Text
+  checkedAt      DateTime @map("checked_at")
+  checkedBy      BigInt?  @map("checked_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([fiscalPeriodId])
+  @@index([checkType])
+  @@map("accounting_checks")
+}
+
+model SystemConnection {
+  id             BigInt    @id @default(autoincrement())
+  companyId      BigInt    @map("company_id")
+  connectionName String    @map("connection_name") @db.VarChar(255)
+  connectionType String    @map("connection_type") @db.VarChar(50)
+  status         String    @db.VarChar(50)
+  statusTone     String    @map("status_tone") @db.VarChar(10)
+  subtitle       String?   @db.VarChar(512)
+  syncLabel      String?   @map("sync_label") @db.VarChar(255)
+  syncTone       String    @map("sync_tone") @db.VarChar(10)
+  actionLabel    String?   @map("action_label") @db.VarChar(50)
+  lastSyncAt     DateTime? @map("last_sync_at")
+  authExpiresAt  DateTime? @map("auth_expires_at") @db.Date
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+  @@map("system_connections")
+}
+
+model ImportTemplate {
+  id               BigInt    @id @default(autoincrement())
+  companyId        BigInt    @map("company_id")
+  name             String    @db.VarChar(255)
+  usageDescription String?   @map("usage_description") @db.VarChar(512)
+  frequency        String    @db.VarChar(50)
+  fileUrl          String?   @map("file_url") @db.VarChar(512)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+  @@map("import_templates")
+}
+
+model ImportRecord {
+  id           BigInt   @id @default(autoincrement())
+  companyId    BigInt   @map("company_id")
+  templateId   BigInt?  @map("template_id")
+  fileName     String   @map("file_name") @db.VarChar(255)
+  uploaderName String   @map("uploader_name") @db.VarChar(100)
+  uploaderId   BigInt?  @map("uploader_id")
+  status       String   @db.VarChar(20)
+  recordCount  Int      @default(0) @map("record_count")
+  errorCount   Int      @default(0) @map("error_count")
+  errorDetails Json?    @map("error_details")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+  @@index([templateId])
+  @@index([status])
+  @@map("import_records")
+}
+
+model DataDictionaryEntry {
+  id                BigInt   @id @default(autoincrement())
+  companyId         BigInt   @map("company_id")
+  module            String   @db.VarChar(100)
+  indicators        String?  @db.Text
+  keyFields         String?  @map("key_fields") @db.Text
+  sourceSystems     String?  @map("source_systems") @db.Text
+  responsiblePerson String?  @map("responsible_person") @db.VarChar(100)
+  updateFrequency   String?  @map("update_frequency") @db.VarChar(50)
+  collectionMethod  String?  @map("collection_method") @db.VarChar(100)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([module])
+  @@map("data_dictionary")
+}
+
+model LiveRoomProfitRanking {
+  id             BigInt   @id @default(autoincrement())
+  companyId      BigInt   @map("company_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  rank           Int
+  roomName       String   @map("room_name") @db.VarChar(255)
+  profit         Decimal  @db.Decimal(18, 2)
+  margin         Decimal  @db.Decimal(10, 4)
+  trend          String   @db.VarChar(10)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([fiscalPeriodId])
+  @@map("live_room_profit_ranking")
+}
+
+model ProductProfitRanking {
+  id             BigInt   @id @default(autoincrement())
+  companyId      BigInt   @map("company_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  rank           Int
+  productName    String   @map("product_name") @db.VarChar(255)
+  profit         Decimal  @db.Decimal(18, 2)
+  margin         Decimal  @db.Decimal(10, 4)
+  trend          String   @db.VarChar(10)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([fiscalPeriodId])
+  @@map("product_profit_ranking")
+}
+
+model BusinessFinancePenetration {
+  id             BigInt   @id @default(autoincrement())
+  companyId      BigInt   @map("company_id")
+  fiscalPeriodId BigInt   @map("fiscal_period_id")
+  indicatorLabel String   @map("indicator_label") @db.VarChar(50)
+  indicatorValue String   @map("indicator_value") @db.VarChar(50)
+  description    String?  @db.VarChar(512)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@index([fiscalPeriodId])
+  @@map("business_finance_penetration")
+}

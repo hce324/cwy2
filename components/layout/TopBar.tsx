@@ -4,8 +4,9 @@ import { useAppStore } from '@/lib/store';
 import { viewMeta } from '@/lib/navigation';
 import { Role } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { signOut, useSession } from 'next-auth/react';
 import {
-  Search, Bell, ChevronDown, Presentation, User
+  Search, Bell, ChevronDown, LogOut, Presentation, User
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -28,7 +29,12 @@ export function TopBar() {
     togglePresentationMode
   } = useAppStore();
 
+  const { data: session } = useSession();
   const meta = viewMeta[currentView];
+
+  const avatarInitial = session?.user?.name
+    ? session.user.name.charAt(0)
+    : roleAvatars[currentRole];
 
   return (
     <header className="flex items-center h-14 px-5 border-b border-border bg-background gap-4 z-10 shrink-0 elevation-1" aria-label="顶栏">
@@ -79,15 +85,24 @@ export function TopBar() {
           render={
             <Button variant="outline" size="sm" className="gap-2 h-8 text-xs">
               <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
-                {roleAvatars[currentRole]}
+                {avatarInitial}
               </span>
-              <span className="hidden sm:inline text-muted-foreground">模拟登录角色：</span>
+              <span className="hidden sm:inline text-muted-foreground">{session?.user ? session.user.name : '模拟登录角色：'}</span>
               <span className="hidden sm:inline font-medium text-foreground">{currentRole}</span>
               <ChevronDown className="h-3 w-3 text-muted-foreground" />
             </Button>
           }
         />
         <DropdownMenuContent align="end" className="w-52">
+          {session?.user && (
+            <>
+              <div className="px-3 py-2">
+                <p className="text-sm font-medium text-foreground truncate">{session.user.name}</p>
+                {session.user.email && <p className="text-xs text-muted-foreground truncate">{session.user.email}</p>}
+              </div>
+              <div className="h-px bg-border mx-1" />
+            </>
+          )}
           <div className="px-3 py-2 text-xs text-muted-foreground font-medium">模拟登录角色</div>
           {(['财务负责人', '财务专员', '出纳'] as Role[]).map(role => (
             <DropdownMenuItem
@@ -102,6 +117,14 @@ export function TopBar() {
               {currentRole === role && <span className="ml-auto text-xs text-primary">✓</span>}
             </DropdownMenuItem>
           ))}
+          <div className="h-px bg-border mx-1" />
+          <DropdownMenuItem
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="gap-2 text-sm cursor-pointer text-[--danger] focus:text-[--danger]"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>退出登录</span>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </header>

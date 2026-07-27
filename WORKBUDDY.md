@@ -249,7 +249,6 @@ import { cn } from '@/lib/utils';
 
 ## 禁止项
 
-- ❌ 禁止使用渐变（`bg-gradient-*`），除非用户明确要求
 - ❌ 禁止使用其他 UI 库（MUI、Ant Design、Chakra UI 等），只用 shadcn/ui
 - ❌ 禁止使用任意颜色值，必须通过 Material CSS 变量令牌
 - ❌ 禁止随意创建自定义组件（仅 FAB、RippleContainer、Elevation 三个例外）

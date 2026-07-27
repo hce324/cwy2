@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { trpc } from '@/lib/trpc-client';
+import { cn } from '@/lib/utils';
 import {
   Card,
   CardContent,
@@ -19,6 +21,8 @@ import {
   TableRow,
   TableCell,
 } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import {
   TrendingUp,
   TrendingDown,
@@ -57,286 +61,164 @@ import {
 } from 'recharts';
 
 // ============================================================
-// Inline Data — Tab 1: 产销经营总览
+// Type helpers for tRPC responses (Decimal / bigint → primitives)
+// Superjson serializes Prisma Decimal to Decimal.js objects and
+// bigint to BigInt, so we convert everything to number/string.
 // ============================================================
 
-const MONTHLY_STATS = [
-  {
-    title: '本月销售额',
-    value: '¥1,286.4万',
-    sub: '同比 +12.6%',
-    trend: 'up' as const,
-    icon: DollarSign,
-  },
-  {
-    title: '本月净利润',
-    value: '¥214.7万',
-    sub: '同比 +6.2%',
-    trend: 'up' as const,
-    icon: TrendingUp,
-  },
-  {
-    title: '自播ROI',
-    value: '3.2',
-    sub: '环比 +0.3',
-    trend: 'up' as const,
-    icon: Radio,
-  },
-  {
-    title: '达播ROI',
-    value: '2.8',
-    sub: '环比 +0.1',
-    trend: 'up' as const,
-    icon: Play,
-  },
-  {
-    title: 'SKU毛利率',
-    value: '38.5%',
-    sub: '同比 +1.2pp',
-    trend: 'up' as const,
-    icon: BarChart3,
-  },
-  {
-    title: '库存周转天数',
-    value: '28天',
-    sub: '环比 ↓ 3天',
-    trend: 'down' as const,
-    icon: Warehouse,
-  },
-];
+type InboundRaw = {
+  id: unknown;
+  docNo: string;
+  type: string;
+  inboundDate: Date | string;
+  warehouse: string;
+  itemCount: number;
+  totalAmount: unknown;
+  status: string;
+};
 
-const SALES_PRODUCTION_TREND = [
-  { month: '1月', sales: 1086, production: 1120, forecast: 1150 },
-  { month: '2月', sales: 1024, production: 1060, forecast: 1080 },
-  { month: '3月', sales: 1146, production: 1180, forecast: 1160 },
-  { month: '4月', sales: 1198, production: 1210, forecast: 1200 },
-  { month: '5月', sales: 1234, production: 1260, forecast: 1240 },
-  { month: '6月', sales: 1286, production: 1300, forecast: 1280 },
-  { month: '7月', sales: 1320, production: 1340, forecast: 1320 },
-  { month: '8月*', sales: null, production: 1380, forecast: 1360 },
-];
+type OutboundRaw = {
+  id: unknown;
+  docNo: string;
+  type: string;
+  outboundDate: Date | string;
+  warehouse: string;
+  itemCount: number;
+  totalAmount: unknown;
+  status: string;
+};
 
-const CHANNEL_DATA = [
-  { name: '抖音自播', value: 28.4, color: 'var(--chart-1)' },
-  { name: '天猫旗舰店', value: 22.6, color: 'var(--chart-2)' },
-  { name: '拼多多直营', value: 18.2, color: 'var(--chart-3)' },
-  { name: '京东官方店', value: 16.8, color: 'var(--chart-4)' },
-  { name: '社区团购', value: 8.5, color: 'var(--chart-5)' },
-  { name: '其他渠道', value: 5.5, color: 'var(--muted-foreground)' },
-];
+type InvRaw = {
+  id: unknown;
+  skuCode: string;
+  skuName: string;
+  warehouse: string;
+  quantity: number;
+  safetyStock: number;
+  unitCost: unknown;
+  category: string;
+  turnoverDays: unknown;
+};
 
-const BIZ_ATTENTION = [
-  {
-    title: '自播投放成本上升',
-    desc: '近 3 个月自播 ROI 从 3.5 降至 3.2，千次展现成本上涨 18%，建议调整投放策略并优化直播间转化。',
-    severity: 'warning' as const,
-  },
-  {
-    title: '供应链库存周转改善',
-    desc: '库存周转天数从 31 天降至 28 天，但畅销 SKU 占比仍达 12%，需加强滞销清理。',
-    severity: 'info' as const,
-  },
-  {
-    title: 'SKU利润结构分化',
-    desc: '头部 3 款爆品占毛利润 42%，尾部 40% SKU 亏损，建议优化产品组合并淘汰亏损 SKU。',
-    severity: 'danger' as const,
-  },
-];
+type InboundItem = {
+  id: string;
+  docNo: string;
+  type: string;
+  inboundDate: string;
+  warehouse: string;
+  itemCount: number;
+  totalAmount: number;
+  status: string;
+};
 
-const PRODUCT_CATEGORIES = [
-  {
-    category: '家居百货',
-    skuCount: 48,
-    sales: 514.56,
-    cost: 321.60,
-    grossProfit: 192.96,
-    margin: 37.5,
-    inventory: 824.0,
-    turnoverDays: 22,
-    status: 'healthy' as const,
-  },
-  {
-    category: '厨房小电器',
-    skuCount: 32,
-    sales: 386.40,
-    cost: 224.11,
-    grossProfit: 162.29,
-    margin: 42.0,
-    inventory: 628.0,
-    turnoverDays: 28,
-    status: 'healthy' as const,
-  },
-  {
-    category: '个护化妆',
-    skuCount: 56,
-    sales: 257.28,
-    cost: 164.66,
-    grossProfit: 92.62,
-    margin: 36.0,
-    inventory: 386.0,
-    turnoverDays: 35,
-    status: 'warning' as const,
-  },
-  {
-    category: '户外运动',
-    skuCount: 24,
-    sales: 128.16,
-    cost: 92.28,
-    grossProfit: 35.88,
-    margin: 28.0,
-    inventory: 312.0,
-    turnoverDays: 42,
-    status: 'danger' as const,
-  },
-];
+type OutboundItem = {
+  id: string;
+  docNo: string;
+  type: string;
+  outboundDate: string;
+  warehouse: string;
+  itemCount: number;
+  totalAmount: number;
+  status: string;
+};
 
-// ============================================================
-// Inline Data — Tab 2: 渠道销售分析
-// ============================================================
+type InvItem = {
+  id: string;
+  skuCode: string;
+  skuName: string;
+  warehouse: string;
+  quantity: number;
+  safetyStock: number;
+  unitCost: number;
+  category: string;
+  turnoverDays: number | null;
+};
 
-const CHANNEL_SALES_TREND = [
-  { month: '1月', '抖音': 286, '天猫': 224, '拼多多': 178, '京东': 168 },
-  { month: '2月', '抖音': 272, '天猫': 218, '拼多多': 170, '京东': 156 },
-  { month: '3月', '抖音': 312, '天猫': 248, '拼多多': 196, '京东': 182 },
-  { month: '4月', '抖音': 338, '天猫': 266, '拼多多': 214, '京东': 198 },
-  { month: '5月', '抖音': 348, '天猫': 278, '拼多多': 228, '京东': 206 },
-  { month: '6月', '抖音': 366, '天猫': 290, '拼多多': 234, '京东': 216 },
-];
+function normalizeItem(raw: InvRaw): InvItem {
+  return {
+    id: String(raw.id),
+    skuCode: raw.skuCode,
+    skuName: raw.skuName,
+    warehouse: raw.warehouse,
+    quantity: raw.quantity,
+    safetyStock: raw.safetyStock,
+    unitCost: n(raw.unitCost),
+    category: raw.category,
+    turnoverDays: raw.turnoverDays != null ? n(raw.turnoverDays) : null,
+  };
+}
 
-const CHANNEL_DETAIL = [
-  { channel: '抖音自播', sales: 366.2, share: 28.4, orders: 48600, aov: 75.3, roi: 3.2, trend: 'up' },
-  { channel: '天猫旗舰店', sales: 290.4, share: 22.6, orders: 35400, aov: 82.0, roi: 4.8, trend: 'up' },
-  { channel: '拼多多直营', sales: 234.1, share: 18.2, orders: 51200, aov: 45.7, roi: 3.6, trend: 'stable' },
-  { channel: '京东官方店', sales: 216.2, share: 16.8, orders: 19800, aov: 109.2, roi: 5.2, trend: 'up' },
-  { channel: '社区团购', sales: 109.3, share: 8.5, orders: 28400, aov: 38.5, roi: 2.4, trend: 'down' },
-  { channel: '其他渠道', sales: 70.8, share: 5.5, orders: 12600, aov: 56.2, roi: 2.1, trend: 'stable' },
-];
+function normalizeInbound(raw: InboundRaw): InboundItem {
+  return {
+    id: String(raw.id),
+    docNo: raw.docNo,
+    type: raw.type,
+    inboundDate: raw.inboundDate instanceof Date ? raw.inboundDate.toISOString().slice(0, 10) : String(raw.inboundDate).slice(0, 10),
+    warehouse: raw.warehouse,
+    itemCount: raw.itemCount,
+    totalAmount: n(raw.totalAmount),
+    status: raw.status,
+  };
+}
 
-// ============================================================
-// Inline Data — Tab 3: 自播ROI分析
-// ============================================================
-
-const SELF_LIVE_ROI_TREND = [
-  { date: '07-01', roi: 3.5, gpm: 42, uv: 18600, conversion: 3.8 },
-  { date: '07-04', roi: 3.3, gpm: 41, uv: 19200, conversion: 3.6 },
-  { date: '07-07', roi: 3.6, gpm: 43, uv: 20400, conversion: 3.9 },
-  { date: '07-10', roi: 3.2, gpm: 40, uv: 17800, conversion: 3.5 },
-  { date: '07-13', roi: 3.4, gpm: 42, uv: 19600, conversion: 3.7 },
-  { date: '07-16', roi: 3.1, gpm: 39, uv: 18200, conversion: 3.4 },
-  { date: '07-19', roi: 3.3, gpm: 41, uv: 18800, conversion: 3.6 },
-  { date: '07-22', roi: 3.2, gpm: 40, uv: 19400, conversion: 3.5 },
-];
-
-const SELF_LIVE_STATS = [
-  { label: '本月自播GMV', value: '¥386.4万', sub: '环比 +8.2%' },
-  { label: '本月投放花费', value: '¥120.8万', sub: '环比 +14.6%' },
-  { label: '自播实收ROI', value: '3.2', sub: '环比 -0.3' },
-  { label: '单场平均GMV', value: '¥8.6万', sub: '环比 +5.1%' },
-];
-
-// ============================================================
-// Inline Data — Tab 4: 达播ROI分析
-// ============================================================
-
-const AFFILIATE_LIVE_ROI_TREND = [
-  { date: '07-01', roi: 2.6, gmv: 86, commission: 28.7 },
-  { date: '07-04', roi: 2.9, gmv: 94, commission: 28.4 },
-  { date: '07-07', roi: 2.7, gmv: 82, commission: 26.8 },
-  { date: '07-10', roi: 3.1, gmv: 102, commission: 29.2 },
-  { date: '07-13', roi: 2.8, gmv: 96, commission: 30.6 },
-  { date: '07-16', roi: 3.0, gmv: 108, commission: 32.0 },
-  { date: '07-19', roi: 2.7, gmv: 92, commission: 30.4 },
-  { date: '07-22', roi: 2.8, gmv: 98, commission: 31.2 },
-];
-
-const AFFILIATE_LIVE_STATS = [
-  { label: '本月达播GMV', value: '¥758.4万', sub: '环比 +12.4%' },
-  { label: '本月佣金支出', value: '¥270.9万', sub: '环比 +10.2%' },
-  { label: '达播实收ROI', value: '2.8', sub: '环比 +0.1' },
-  { label: '合作达人数', value: '86人', sub: '新增 6 人' },
-];
-
-// ============================================================
-// Inline Data — Tab 5: SKU经营分析
-// ============================================================
-
-const SKU_PERFORMANCE = [
-  { sku: '纳米蒸烤一体锅', category: '厨房小电器', sales: 186.4, margin: 46.2, roi: 4.8, rank: 1 },
-  { sku: '智能洗地机', category: '厨房小电器', sales: 148.2, margin: 42.0, roi: 3.9, rank: 2 },
-  { sku: '氮化镓智能水杯', category: '家居百货', sales: 132.8, margin: 38.5, roi: 4.2, rank: 3 },
-  { sku: '免安装智能门锁', category: '家居百货', sales: 108.6, margin: 35.2, roi: 3.6, rank: 4 },
-  { sku: '三合一充电站', category: '家居百货', sales: 96.4, margin: 32.8, roi: 2.8, rank: 5 },
-  { sku: '便携式颈部按摩仪', category: '个护化妆', sales: 78.2, margin: 48.6, roi: 5.6, rank: 6 },
-  { sku: '户外充气床垫', category: '户外运动', sales: 62.4, margin: 22.0, roi: 1.6, rank: 7 },
-  { sku: '智能除蚨仪', category: '个护化妆', sales: 56.8, margin: 44.2, roi: 3.8, rank: 8 },
-];
-
-const SKU_PROFIT_MATRIX = [
-  { name: '纳米蒸烤锅', margin: 46.2, share: 18.6 },
-  { name: '洗地机', margin: 42.0, share: 14.8 },
-  { name: '智能水杯', margin: 38.5, share: 13.2 },
-  { name: '智能门锁', margin: 35.2, share: 10.8 },
-  { name: '充电站', margin: 32.8, share: 9.6 },
-  { name: '颈部按摩仪', margin: 48.6, share: 7.8 },
-  { name: '充气床垫', margin: 22.0, share: 6.2 },
-  { name: '除蚨仪', margin: 44.2, share: 5.6 },
-];
-
-// ============================================================
-// Inline Data — Tab 6: 供应链采购分析
-// ============================================================
-
-const PROCUREMENT_STATS = [
-  { label: '本月采购金额', value: '¥682.4万', sub: '环比 +6.2%' },
-  { label: '采购订单履约率', value: '94.2%', sub: '环比 +1.8pp' },
-  { label: '供应商交期准时率', value: '88.6%', sub: '环比 -2.4pp' },
-  { label: '采购成本节约', value: '¥28.4万', sub: '达成率 86%' },
-];
-
-const SUPPLIER_PERFORMANCE = [
-  { supplier: '华东智能制造', orders: 48, onTime: 94.2, quality: 98.6, score: 96.4 },
-  { supplier: '珠海家电生态', orders: 36, onTime: 91.4, quality: 97.2, score: 94.3 },
-  { supplier: '深圳新材料科技', orders: 28, onTime: 86.8, quality: 95.4, score: 91.1 },
-  { supplier: '义乌小商品城', orders: 52, onTime: 82.4, quality: 93.8, score: 88.1 },
-];
-
-const PROCUREMENT_TREND = [
-  { month: '1月', amount: 586, planned: 600 },
-  { month: '2月', amount: 524, planned: 540 },
-  { month: '3月', amount: 612, planned: 620 },
-  { month: '4月', amount: 648, planned: 660 },
-  { month: '5月', amount: 662, planned: 670 },
-  { month: '6月', amount: 682, planned: 690 },
-];
-
-// ============================================================
-// Inline Data — Tab 7: 库存健康分析
-// ============================================================
-
-const INVENTORY_STATS = [
-  { label: '库存总额', value: '¥2,150.4万', sub: '环比 -4.2%' },
-  { label: '周转天数', value: '28天', sub: '目标 ≤ 30天' },
-  { label: '滞销占比', value: '12.4%', sub: '环比 -1.8pp' },
-  { label: '缺货率', value: '3.2%', sub: '环比 -0.6pp' },
-];
-
-const INVENTORY_STRUCTURE = [
-  { category: '厨房小电器', value: 628, turnover: 28 },
-  { category: '家居百货', value: 824, turnover: 22 },
-  { category: '个护化妆', value: 386, turnover: 35 },
-  { category: '户外运动', value: 312, turnover: 42 },
-];
-
-const INVENTORY_ALERTS = [
-  { sku: '充气床垫', category: '户外运动', stock: 186, days: 68, status: '高滞销' as const },
-  { sku: '纳米蒸烤锅', category: '厨房小电器', stock: 24, days: 4, status: '即将缺货' as const },
-  { sku: '智能洗地机', category: '厨房小电器', stock: 42, days: 8, status: '低库存' as const },
-  { sku: '防晒霜 SPF50', category: '个护化妆', stock: 320, days: 86, status: '高滞销' as const },
-];
+function normalizeOutbound(raw: OutboundRaw): OutboundItem {
+  return {
+    id: String(raw.id),
+    docNo: raw.docNo,
+    type: raw.type,
+    outboundDate: raw.outboundDate instanceof Date ? raw.outboundDate.toISOString().slice(0, 10) : String(raw.outboundDate).slice(0, 10),
+    warehouse: raw.warehouse,
+    itemCount: raw.itemCount,
+    totalAmount: n(raw.totalAmount),
+    status: raw.status,
+  };
+}
 
 // ============================================================
 // Helpers
 // ============================================================
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function n(v: any): number {
+  return Number(v ?? 0);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function fmtCurrency(v: any): string {
+  const val = n(v);
+  return `¥${val.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtCurrencyWan(v: number): string {
+  return `¥${(v / 10000).toFixed(1)}万`;
+}
+
+function fmtPct(v: number): string {
+  return `${v.toFixed(1)}%`;
+}
+
+function fmtDate(d: Date | string | undefined | null): string {
+  if (!d) return '—';
+  if (d instanceof Date) return d.toISOString().slice(0, 10);
+  return String(d).slice(0, 10);
+}
+
+function fmtMonth(d: Date | string): string {
+  const date = d instanceof Date ? d : new Date(d);
+  return `${date.getMonth() + 1}月`;
+}
+
+function fmtShortDate(d: Date | string): string {
+  const date = d instanceof Date ? d : new Date(d);
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${mm}-${dd}`;
+}
+
+function getMonthKey(d: Date | string): string {
+  const date = d instanceof Date ? d : new Date(d);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
 
 function severityColor(s: 'warning' | 'info' | 'danger' | 'healthy'): string {
   switch (s) {
@@ -363,6 +245,24 @@ function statusVariant(s: 'healthy' | 'warning' | 'danger'): 'default' | 'second
       return 'destructive';
   }
 }
+
+function itemStatus(item: InvItem): 'healthy' | 'warning' | 'danger' {
+  if (item.quantity === 0) return 'danger';
+  if (item.quantity <= item.safetyStock) return 'warning';
+  return 'healthy';
+}
+
+// ============================================================
+// Chart colors — defined via chart CSS variables
+// ============================================================
+
+const CHART_COLORS = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+];
 
 // ============================================================
 // Stat Card (shared)
@@ -427,11 +327,374 @@ function StatCard({
 }
 
 // ============================================================
+// Skeleton presets
+// ============================================================
+
+function StatCardSkeleton() {
+  return (
+    <Card size="sm">
+      <CardHeader className="pb-1">
+        <Skeleton className="h-3 w-16" />
+      </CardHeader>
+      <CardContent>
+        <Skeleton className="h-7 w-24" />
+        <Skeleton className="h-3 w-20 mt-1" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function ChartSkeleton({ height = 320 }: { height?: number }) {
+  return (
+    <Card>
+      <CardHeader>
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-3 w-60 mt-1" />
+      </CardHeader>
+      <CardContent>
+        <Skeleton className="w-full rounded-md" style={{ height }} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function TableSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <div className="space-y-3 p-4">
+      {Array.from({ length: rows }).map((_, i) => (
+        <Skeleton key={i} className="h-8 w-full" />
+      ))}
+    </div>
+  );
+}
+
+// ============================================================
 // Main Component
 // ============================================================
 
 export function InventoryView() {
   const [tabValue, setTabValue] = useState('overview');
+
+  // ── tRPC Queries ──────────────────────────────────────────────
+
+  const stockSummaryQuery = trpc.inventory.stockSummary.useQuery();
+  const itemsQuery = trpc.inventory.listItems.useQuery({ limit: 100, offset: 0 });
+  const inboundsQuery = trpc.inventory.listInbounds.useQuery({ limit: 100, offset: 0 });
+  const outboundsQuery = trpc.inventory.listOutbounds.useQuery({ limit: 100, offset: 0 });
+
+  // ── Loading / error flags ─────────────────────────────────────
+
+  const isLoading =
+    stockSummaryQuery.isLoading ||
+    itemsQuery.isLoading ||
+    inboundsQuery.isLoading ||
+    outboundsQuery.isLoading;
+
+  const isError =
+    stockSummaryQuery.isError ||
+    itemsQuery.isError ||
+    inboundsQuery.isError ||
+    outboundsQuery.isError;
+
+  const errorMsg =
+    stockSummaryQuery.error?.message ??
+    itemsQuery.error?.message ??
+    inboundsQuery.error?.message ??
+    outboundsQuery.error?.message ??
+    '数据加载失败，请稍后重试';
+
+  // ── Derived data ──────────────────────────────────────────────
+
+  const stockSummary = stockSummaryQuery.data;
+  const items: InvItem[] = useMemo(
+    () => (itemsQuery.data?.items ?? []).map((raw: unknown) => normalizeItem(raw as InvRaw)),
+    [itemsQuery.data?.items],
+  );
+  const inbounds: InboundItem[] = useMemo(
+    () => (inboundsQuery.data?.items ?? []).map((raw: unknown) => normalizeInbound(raw as InboundRaw)),
+    [inboundsQuery.data?.items],
+  );
+  const outbounds: OutboundItem[] = useMemo(
+    () => (outboundsQuery.data?.items ?? []).map((raw: unknown) => normalizeOutbound(raw as OutboundRaw)),
+    [outboundsQuery.data?.items],
+  );
+
+  // Category aggregate helpers
+  const categoryNames = useMemo(() => {
+    const set = new Set<string>();
+    items.forEach((i) => set.add(i.category));
+    return Array.from(set);
+  }, [items]);
+
+  const categoryAgg = useMemo(() => {
+    const map = new Map<string, { count: number; totalQty: number; totalValue: number; totalTurnover: number; turnoverCount: number }>();
+    items.forEach((item) => {
+      const entry = map.get(item.category) ?? { count: 0, totalQty: 0, totalValue: 0, totalTurnover: 0, turnoverCount: 0 };
+      entry.count++;
+      entry.totalQty += item.quantity;
+      entry.totalValue += n(item.unitCost) * item.quantity;
+      if (item.turnoverDays !== null && item.turnoverDays !== undefined) {
+        entry.totalTurnover += n(item.turnoverDays);
+        entry.turnoverCount++;
+      }
+      map.set(item.category, entry);
+    });
+    return map;
+  }, [items]);
+
+  // Monthly inbound aggregation for chart
+  const inboundMonthly = useMemo(() => {
+    const map = new Map<string, { amount: number; count: number }>();
+    inbounds.forEach((ib) => {
+      const key = getMonthKey(ib.inboundDate);
+      const entry = map.get(key) ?? { amount: 0, count: 0 };
+      entry.amount += n(ib.totalAmount);
+      entry.count++;
+      map.set(key, entry);
+    });
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, data]) => ({
+        month: month.slice(5) + '月',
+        amount: data.amount,
+        count: data.count,
+      }));
+  }, [inbounds]);
+
+  // Monthly outbound aggregation for chart
+  const outboundMonthly = useMemo(() => {
+    const map = new Map<string, { amount: number; count: number }>();
+    outbounds.forEach((ob) => {
+      const key = getMonthKey(ob.outboundDate);
+      const entry = map.get(key) ?? { amount: 0, count: 0 };
+      entry.amount += n(ob.totalAmount);
+      entry.count++;
+      map.set(key, entry);
+    });
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, data]) => ({
+        month: month.slice(5) + '月',
+        amount: data.amount,
+        count: data.count,
+      }));
+  }, [outbounds]);
+
+  // Outbound by type (channel proxy)
+  const outboundByType = useMemo(() => {
+    const map = new Map<string, { amount: number; count: number }>();
+    outbounds.forEach((ob) => {
+      const entry = map.get(ob.type) ?? { amount: 0, count: 0 };
+      entry.amount += n(ob.totalAmount);
+      entry.count++;
+      map.set(ob.type, entry);
+    });
+    const total = Array.from(map.values()).reduce((s, v) => s + v.amount, 0) || 1;
+    return Array.from(map.entries())
+      .sort(([, a], [, b]) => b.amount - a.amount)
+      .map(([type, data], idx) => ({
+        name: type,
+        value: total > 0 ? +(data.amount / total * 100).toFixed(1) : 0,
+        amount: data.amount,
+        count: data.count,
+        color: CHART_COLORS[idx % CHART_COLORS.length],
+      }));
+  }, [outbounds]);
+
+  // Inbound by type
+  const inboundByType = useMemo(() => {
+    const map = new Map<string, { amount: number; count: number }>();
+    inbounds.forEach((ib) => {
+      const entry = map.get(ib.type) ?? { amount: 0, count: 0 };
+      entry.amount += n(ib.totalAmount);
+      entry.count++;
+      map.set(ib.type, entry);
+    });
+    const total = Array.from(map.values()).reduce((s, v) => s + v.amount, 0) || 1;
+    return Array.from(map.entries())
+      .sort(([, a], [, b]) => b.amount - a.amount)
+      .map(([type, data], idx) => ({
+        name: type,
+        value: total > 0 ? +(data.amount / total * 100).toFixed(1) : 0,
+        amount: data.amount,
+        count: data.count,
+        color: CHART_COLORS[idx % CHART_COLORS.length],
+      }));
+  }, [inbounds]);
+
+  // Inventory structure by category for charts
+  const inventoryByCategory = useMemo(() => {
+    return Array.from(categoryAgg.entries())
+      .sort(([, a], [, b]) => b.totalQty - a.totalQty)
+      .map(([category, data]) => ({
+        category,
+        value: data.totalQty,
+        turnover: data.turnoverCount > 0 ? +(data.totalTurnover / data.turnoverCount).toFixed(1) : 0,
+      }));
+  }, [categoryAgg]);
+
+  // Low stock alerts
+  const lowStockItems = useMemo(() => {
+    return items
+      .filter((item) => item.quantity <= item.safetyStock || item.quantity === 0)
+      .slice(0, 8);
+  }, [items]);
+
+  // High stock items (high quantity, for滞销 analysis)
+  const highStockItems = useMemo(() => {
+    return items
+      .filter((item) => item.quantity > item.safetyStock * 3 && item.quantity > 50)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 8);
+  }, [items]);
+
+  // Total aggregates
+  const totalInboundAmount = useMemo(() => inbounds.reduce((s, ib) => s + n(ib.totalAmount), 0), [inbounds]);
+  const totalOutboundAmount = useMemo(() => outbounds.reduce((s, ob) => s + n(ob.totalAmount), 0), [outbounds]);
+  const totalItemQty = useMemo(() => items.reduce((s, i) => s + i.quantity, 0), [items]);
+  const totalItemValue = useMemo(() => Array.from(categoryAgg.values()).reduce((s, c) => s + c.totalValue, 0), [categoryAgg]);
+  const avgTurnoverDays =
+    items.length > 0
+      ? +(items.reduce((s, i) => s + n(i.turnoverDays), 0) / items.length).toFixed(1)
+      : 0;
+
+  // For the combined trend chart
+  const combinedTrend = useMemo(() => {
+    const map = new Map<string, { inboundAmount: number; outboundAmount: number; inboundCount: number; outboundCount: number }>();
+    inbounds.forEach((ib) => {
+      const key = getMonthKey(ib.inboundDate);
+      const entry = map.get(key) ?? { inboundAmount: 0, outboundAmount: 0, inboundCount: 0, outboundCount: 0 };
+      entry.inboundAmount += n(ib.totalAmount);
+      entry.inboundCount++;
+      map.set(key, entry);
+    });
+    outbounds.forEach((ob) => {
+      const key = getMonthKey(ob.outboundDate);
+      const entry = map.get(key) ?? { inboundAmount: 0, outboundAmount: 0, inboundCount: 0, outboundCount: 0 };
+      entry.outboundAmount += n(ob.totalAmount);
+      entry.outboundCount++;
+      map.set(key, entry);
+    });
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, data]) => ({
+        month: month.slice(5) + '月',
+        inbound: +(data.inboundAmount / 10000).toFixed(1),
+        outbound: +(data.outboundAmount / 10000).toFixed(1),
+      }));
+  }, [inbounds, outbounds]);
+
+  // Outbound by type for channel analysis
+  const outboundMonthlyByType = useMemo(() => {
+    const types = [...new Set(outbounds.map((o) => o.type))].slice(0, 4);
+    const map = new Map<string, Record<string, number>>();
+    outbounds.forEach((ob) => {
+      if (!types.includes(ob.type)) return;
+      const key = getMonthKey(ob.outboundDate);
+      const entry = map.get(key) ?? {};
+      entry[ob.type] = (entry[ob.type] ?? 0) + n(ob.totalAmount) / 10000;
+      map.set(key, entry);
+    });
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, data]) => ({
+        month: month.slice(5) + '月',
+        ...data,
+      }));
+  }, [outbounds]);
+
+  // ============================================================
+  // Empty state helper
+  // ============================================================
+
+  const isEmpty = !isLoading && !isError && items.length === 0 && inbounds.length === 0 && outbounds.length === 0;
+
+  // ============================================================
+  // Render: Loading state (full page)
+  // ============================================================
+
+  if (isLoading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <Skeleton className="h-8 w-72" />
+            <Skeleton className="h-4 w-96 mt-2" />
+          </div>
+          <Skeleton className="h-9 w-32" />
+        </div>
+        <Skeleton className="h-10 w-full max-w-2xl" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <StatCardSkeleton key={i} />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          <div className="lg:col-span-3"><ChartSkeleton /></div>
+          <div className="lg:col-span-2"><ChartSkeleton height={280} /></div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // Render: Error state
+  // ============================================================
+
+  if (isError) {
+    return (
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="page-title">产销管理 · 库存与出入库</h1>
+          <p className="page-subtitle">库存管理、采购入库与销售出库数据分析。</p>
+        </div>
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>数据加载失败</AlertTitle>
+          <AlertDescription>{errorMsg}</AlertDescription>
+        </Alert>
+        <Button
+          variant="outline"
+          onClick={() => {
+            stockSummaryQuery.refetch();
+            itemsQuery.refetch();
+            inboundsQuery.refetch();
+            outboundsQuery.refetch();
+          }}
+        >
+          重试
+        </Button>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // Render: Empty state
+  // ============================================================
+
+  if (isEmpty) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="page-title">产销管理 · 库存与出入库</h1>
+            <p className="page-subtitle">库存管理、采购入库与销售出库数据分析。</p>
+          </div>
+        </div>
+        <Alert>
+          <Package className="h-4 w-4" />
+          <AlertTitle>暂无数据</AlertTitle>
+          <AlertDescription>
+            当前租户下暂无库存商品、入库或出库记录。请先创建商品并录入出入库单据。
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // Render: Main content
+  // ============================================================
 
   return (
     <div className="p-6 space-y-6">
@@ -439,20 +702,19 @@ export function InventoryView() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="page-title">
-            产销管理 · 财务经营视角 — 产销经营总览
+            产销管理 · 库存与出入库
           </h1>
           <p className="page-subtitle">
-            打通销售、直播投放、SKU利润、采购供应与库存周转，实现从销售到供应链的经营闭环管理。
+            实时监控库存水平、出入库流水与类目结构，支持采购入库与销售出库全链路追踪。
           </p>
         </div>
         <Button variant="outline" size="sm" className="shrink-0 gap-1.5">
           <Download className="h-4 w-4" />
-          导出经营报表
+          导出库存报表
         </Button>
       </div>
 
       {/* ---- Tabs ---- */}
-      {/* shadcn Tabs wrapper (built on @base-ui/react/tabs) */}
       <Tabs
         className="w-full"
         value={tabValue}
@@ -461,658 +723,397 @@ export function InventoryView() {
         }}
       >
         <TabsList className="flex-wrap">
-          <TabsTrigger value="overview">产销经营总览</TabsTrigger>
-          <TabsTrigger value="channel">渠道销售分析</TabsTrigger>
-          <TabsTrigger value="self-live">自播ROI分析</TabsTrigger>
-          <TabsTrigger value="affiliate-live">达播ROI分析</TabsTrigger>
-          <TabsTrigger value="sku">SKU经营分析</TabsTrigger>
-          <TabsTrigger value="procurement">供应链采购分析</TabsTrigger>
+          <TabsTrigger value="overview">出入库总览</TabsTrigger>
+          <TabsTrigger value="channel">出库类型分析</TabsTrigger>
+          <TabsTrigger value="self-live">出库趋势</TabsTrigger>
+          <TabsTrigger value="affiliate-live">入库趋势</TabsTrigger>
+          <TabsTrigger value="sku">商品SKU分析</TabsTrigger>
+          <TabsTrigger value="procurement">采购入库明细</TabsTrigger>
           <TabsTrigger value="inventory">库存健康分析</TabsTrigger>
         </TabsList>
 
         {/* ================================================================ */}
-        {/* Tab 1: 产销经营总览 */}
+        {/* Tab 1: 出入库总览 */}
         {/* ================================================================ */}
         <TabsContent value="overview" className="mt-6 flex flex-col gap-6">
           {/* ---- Stat Row ---- */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-            {MONTHLY_STATS.map((s) => (
-              <StatCard key={s.title} {...s} />
-            ))}
+            <StatCard
+              title="库存商品数"
+              value={String(stockSummary?.totalItems ?? 0)}
+              sub="SKU总数"
+              trend="neutral"
+              icon={Package}
+            />
+            <StatCard
+              title="库存总量"
+              value={String(stockSummary?.totalQuantity ?? 0)}
+              sub="单位：件"
+              trend="neutral"
+              icon={Warehouse}
+            />
+            <StatCard
+              title="库存总值"
+              value={fmtCurrencyWan(totalItemValue)}
+              sub={`低库存预警 ${stockSummary?.lowStockCount ?? 0} 项`}
+              trend={stockSummary?.lowStockCount && stockSummary.lowStockCount > 0 ? 'down' : 'up'}
+              icon={DollarSign}
+            />
+            <StatCard
+              title="入库总额"
+              value={fmtCurrencyWan(totalInboundAmount)}
+              sub={`${inbounds.length} 笔`}
+              trend="up"
+              icon={ShoppingCart}
+            />
+            <StatCard
+              title="出库总额"
+              value={fmtCurrencyWan(totalOutboundAmount)}
+              sub={`${outbounds.length} 笔`}
+              trend="up"
+              icon={Store}
+            />
+            <StatCard
+              title="平均周转天数"
+              value={`${avgTurnoverDays}天`}
+              sub={avgTurnoverDays <= 30 ? '健康' : '偏慢'}
+              trend={avgTurnoverDays <= 30 ? 'up' : 'down'}
+              icon={BarChart3}
+            />
           </div>
 
           {/* ---- Charts Row ---- */}
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            {/* Sales & Production Trend */}
+            {/* Combined Trend */}
             <Card className="lg:col-span-3">
               <CardHeader>
-                <CardTitle className="text-base font-heading">销售与排产趋势</CardTitle>
-                <CardDescription>单位：万元 · 近 8 个月趋势，* 为预估值</CardDescription>
+                <CardTitle className="text-base font-heading">出入库金额趋势</CardTitle>
+                <CardDescription>单位：万元 · 按月统计</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={320}>
-                  <ComposedChart data={SALES_PRODUCTION_TREND}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
-                    <YAxis tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'var(--popover)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius)',
-                        fontSize: 13,
-                      }}
-                    />
-                    <Legend />
-                    <Bar dataKey="sales" name="实际销售" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
-                    <Line
-                      type="monotone"
-                      dataKey="production"
-                      name="实际排产"
-                      stroke="var(--chart-3)"
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="forecast"
-                      name="预估排产"
-                      stroke="var(--chart-4)"
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      dot={{ r: 3 }}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
+                {combinedTrend.length === 0 ? (
+                  <div className="flex items-center justify-center h-80 text-sm text-muted-foreground">
+                    暂无出入库数据
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={320}>
+                    <ComposedChart data={combinedTrend}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
+                      <YAxis tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--popover)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
+                          fontSize: 13,
+                        }}
+                        formatter={(val: unknown) => `${Number(val)}万`}
+                      />
+                      <Legend />
+                      <Bar dataKey="inbound" name="入库金额" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+                      <Line
+                        type="monotone"
+                        dataKey="outbound"
+                        name="出库金额"
+                        stroke="var(--chart-3)"
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
 
-            {/* Channel Pie */}
+            {/* Category Distribution Pie */}
             <Card className="lg:col-span-2">
               <CardHeader>
-                <CardTitle className="text-base font-heading">销售渠道结构</CardTitle>
-                <CardDescription>本月各渠道销售占比</CardDescription>
+                <CardTitle className="text-base font-heading">商品类目结构</CardTitle>
+                <CardDescription>按库存数量分布</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col items-center">
-                <ResponsiveContainer width="100%" height={280}>
-                  <RPieChart>
-                    <Pie
-                      data={CHANNEL_DATA}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={62}
-                      outerRadius={110}
-                      paddingAngle={2}
-                      dataKey="value"
-                      nameKey="name"
-                    >
-                      {CHANNEL_DATA.map((entry, idx) => (
-                        <Cell key={`cell-${idx}`} fill={entry.color} />
+                {categoryNames.length === 0 ? (
+                  <div className="flex items-center justify-center h-72 text-sm text-muted-foreground">
+                    暂无商品数据
+                  </div>
+                ) : (
+                  <>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <RPieChart>
+                        <Pie
+                          data={inventoryByCategory.map((c, idx) => ({
+                            name: c.category,
+                            value: c.value,
+                            color: CHART_COLORS[idx % CHART_COLORS.length],
+                          }))}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={62}
+                          outerRadius={110}
+                          paddingAngle={2}
+                          dataKey="value"
+                          nameKey="name"
+                        >
+                          {inventoryByCategory.map((entry, idx) => (
+                            <Cell key={`cell-${idx}`} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            background: 'var(--popover)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius)',
+                            fontSize: 13,
+                          }}
+                          formatter={(val: unknown) => `${Number(val)}件`}
+                        />
+                      </RPieChart>
+                    </ResponsiveContainer>
+                    <div className="flex flex-wrap gap-3 justify-center mt-2">
+                      {inventoryByCategory.map((c, idx) => (
+                        <div key={c.category} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <span
+                            className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}
+                          />
+                          {c.category} {c.value}件
+                        </div>
                       ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        background: 'var(--popover)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius)',
-                        fontSize: 13,
-                      }}
-                      formatter={(val) => `${val}%`}
-                    />
-                  </RPieChart>
-                </ResponsiveContainer>
-                <div className="flex flex-wrap gap-3 justify-center mt-2">
-                  {CHANNEL_DATA.map((c) => (
-                    <div key={c.name} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <span
-                        className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: c.color }}
-                      />
-                      {c.name} {c.value}%
                     </div>
-                  ))}
-                </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
 
-          {/* ---- 经营关注 + 产销协同 Row ---- */}
+          {/* ---- 库存预警 + 出入库统计 Row ---- */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 经营关注 */}
+            {/* 库存预警 */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base font-heading flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-warning" />
-                  经营关注
+                  库存预警
                 </CardTitle>
-                <CardDescription>本月需重点关注的经营风险与机会</CardDescription>
+                <CardDescription>低库存与高库存商品关注列表</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
-                {BIZ_ATTENTION.map((item) => {
-                  const SevIcon =
-                    item.severity === 'danger'
-                      ? ShieldAlert
-                      : item.severity === 'warning'
-                        ? AlertTriangle
-                        : Eye;
-                  return (
-                    <div
-                      key={item.title}
-                      className="flex gap-3 rounded-lg border p-4"
-                      style={{ borderColor: severityColor(item.severity), borderLeftWidth: 4 }}
-                    >
-                      <SevIcon
-                        className="h-5 w-5 mt-0.5 shrink-0"
-                        style={{ color: severityColor(item.severity) }}
-                      />
-                      <div className="flex flex-col gap-1">
-                        <span className="text-sm font-semibold text-foreground">{item.title}</span>
-                        <span className="text-xs text-muted-foreground leading-relaxed">
-                          {item.desc}
-                        </span>
+                {lowStockItems.length === 0 && highStockItems.length === 0 ? (
+                  <div className="text-sm text-muted-foreground py-4">
+                    当前无库存预警，所有商品库存正常。
+                  </div>
+                ) : (
+                  <>
+                    {lowStockItems.map((item) => (
+                      <div
+                        key={`low-${item.id}`}
+                        className="flex gap-3 rounded-lg border p-4"
+                        style={{ borderColor: 'var(--destructive)', borderLeftWidth: 4 }}
+                      >
+                        <ShieldAlert className="h-5 w-5 mt-0.5 shrink-0" style={{ color: 'var(--destructive)' }} />
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-semibold text-foreground">低库存: {item.skuName}</span>
+                          <span className="text-xs text-muted-foreground leading-relaxed">
+                            当前库存 {item.quantity}，安全库存 {item.safetyStock}，{item.warehouse} · {item.category}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    ))}
+                    {highStockItems.slice(0, 3).map((item) => (
+                      <div
+                        key={`high-${item.id}`}
+                        className="flex gap-3 rounded-lg border p-4"
+                        style={{ borderColor: 'var(--warning)', borderLeftWidth: 4 }}
+                      >
+                        <Eye className="h-5 w-5 mt-0.5 shrink-0" style={{ color: 'var(--warning)' }} />
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-semibold text-foreground">高库存: {item.skuName}</span>
+                          <span className="text-xs text-muted-foreground leading-relaxed">
+                            库存 {item.quantity}，建议关注周转 · {item.warehouse}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
               </CardContent>
             </Card>
 
-            {/* 产销协同达成 */}
+            {/* 出入库达成 */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base font-heading flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-success" />
-                  产销协同达成
+                  出入库指标
                 </CardTitle>
-                <CardDescription>本月产销协同指标完成情况</CardDescription>
+                <CardDescription>本月库存管理核心指标</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-5">
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">销售达成率</span>
-                    <span className="font-semibold text-foreground">96.2%</span>
+                    <span className="text-muted-foreground">入库单据数</span>
+                    <span className="font-semibold text-foreground">{inbounds.length} 笔</span>
                   </div>
                   <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full bg-success" style={{ width: '96.2%' }} />
+                    <div className="h-full rounded-full bg-primary" style={{ width: '100%' }} />
                   </div>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">排产达成率</span>
-                    <span className="font-semibold text-foreground">98.8%</span>
+                    <span className="text-muted-foreground">出库单据数</span>
+                    <span className="font-semibold text-foreground">{outbounds.length} 笔</span>
                   </div>
                   <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full bg-primary" style={{ width: '98.8%' }} />
+                    <div className="h-full rounded-full bg-success" style={{ width: '100%' }} />
                   </div>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">产销匹配度</span>
-                    <span className="font-semibold text-foreground">92.4%</span>
+                    <span className="text-muted-foreground">商品健康率</span>
+                    <span className="font-semibold text-foreground">
+                      {items.length > 0 ? fmtPct((items.filter((i) => i.quantity > i.safetyStock).length / items.length) * 100) : '—'}
+                    </span>
                   </div>
                   <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full bg-warning" style={{ width: '92.4%' }} />
+                    <div
+                      className="h-full rounded-full bg-warning"
+                      style={{
+                        width: items.length > 0
+                          ? `${((items.filter((i) => i.quantity > i.safetyStock).length / items.length) * 100).toFixed(0)}%`
+                          : '0%',
+                      }}
+                    />
                   </div>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">交期准时率</span>
-                    <span className="font-semibold text-foreground">94.6%</span>
+                    <span className="text-muted-foreground">低库存占比</span>
+                    <span className="font-semibold text-foreground">
+                      {items.length > 0 ? fmtPct((lowStockItems.length / items.length) * 100) : '—'}
+                    </span>
                   </div>
                   <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full bg-[--chart-1]" style={{ width: '94.6%' }} />
+                    <div className="h-full rounded-full bg-[--chart-1]" style={{ width: `${items.length > 0 ? Math.min((lowStockItems.length / items.length) * 100, 100) : 0}%` }} />
                   </div>
                 </div>
                 <div className="mt-2 rounded-lg bg-accent p-3 text-center">
                   <p className="text-xs text-accent-foreground font-medium">
-                    综合协同得分 <span className="text-lg font-bold">95.5</span> / 100
+                    库存总值 <span className="text-lg font-bold">{fmtCurrencyWan(totalItemValue)}</span>
                   </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">同比 +2.1 分，较上月 +0.8 分</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {stockSummary?.totalItems ?? 0} 个SKU，{categoryNames.length} 个类目
+                  </p>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* ---- Detailed Table ---- */}
+          {/* ---- Category Detail Table ---- */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base font-heading flex items-center gap-2">
                 <ShoppingCart className="h-4 w-4" />
-                产品类目经营明细
+                商品类目明细
               </CardTitle>
-              <CardDescription>四大产品类目本月销售、利润、库存综合数据</CardDescription>
+              <CardDescription>各类目库存数量、估值与周转分析</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>产品类目</TableHead>
-                    <TableHead className="text-right">SKU数</TableHead>
-                    <TableHead className="text-right">销售额(万)</TableHead>
-                    <TableHead className="text-right">成本(万)</TableHead>
-                    <TableHead className="text-right">毛利(万)</TableHead>
-                    <TableHead className="text-right">毛利率</TableHead>
-                    <TableHead className="text-right">库存额(万)</TableHead>
-                    <TableHead className="text-right">周转天数</TableHead>
-                    <TableHead>状态</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {PRODUCT_CATEGORIES.map((row) => (
-                    <TableRow key={row.category}>
-                      <TableCell className="font-medium">{row.category}</TableCell>
-                      <TableCell className="text-right">{row.skuCount}</TableCell>
-                      <TableCell className="text-right">{row.sales.toFixed(2)}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {row.cost.toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">{row.grossProfit.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">
-                        <span style={{ color: row.margin >= 35 ? 'var(--success)' : row.margin >= 28 ? 'var(--warning)' : 'var(--destructive)' }}>
-                          {row.margin}%
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">{row.inventory.toFixed(1)}</TableCell>
-                      <TableCell className="text-right">
-                        <span
-                          className={
-                            row.turnoverDays <= 30
-                              ? 'text-success'
-                              : row.turnoverDays <= 40
-                                ? 'text-warning'
-                                : 'text-destructive'
-                          }
-                        >
-                          {row.turnoverDays}天
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={statusVariant(row.status)}>
-                          {row.status === 'healthy'
-                            ? '健康'
-                            : row.status === 'warning'
-                              ? '警戒'
-                              : '危险'}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ================================================================ */}
-        {/* Tab 2: 渠道销售分析 */}
-        {/* ================================================================ */}
-        <TabsContent value="channel" className="mt-6 flex flex-col gap-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <StatCard title="全渠道销售额" value="¥1,286.4万" sub="同比 +12.6%" trend="up" icon={Store} />
-            <StatCard title="抖音占比" value="28.4%" sub="第一大渠道" trend="up" icon={Radio} />
-            <StatCard title="京东客单价" value="¥109.2" sub="各渠道最高" trend="up" icon={DollarSign} />
-            <StatCard title="拼多多订单数" value="51,200" sub="各渠道最多" trend="up" icon={ShoppingCart} />
-          </div>
-
-          {/* Channel Trend Chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-heading">渠道销售趋势</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={320}>
-                <AreaChart data={CHANNEL_SALES_TREND}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
-                  <YAxis tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
-                  <Tooltip
-                    contentStyle={{
-                      background: 'var(--popover)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius)',
-                    }}
-                  />
-                  <Legend />
-                  <Area type="monotone" dataKey="抖音" stackId="1" stroke="var(--chart-1)" fill="var(--chart-1)" fillOpacity={0.3} />
-                  <Area type="monotone" dataKey="天猫" stackId="1" stroke="var(--chart-2)" fill="var(--chart-2)" fillOpacity={0.3} />
-                  <Area type="monotone" dataKey="拼多多" stackId="1" stroke="var(--chart-3)" fill="var(--chart-3)" fillOpacity={0.3} />
-                  <Area type="monotone" dataKey="京东" stackId="1" stroke="var(--chart-4)" fill="var(--chart-4)" fillOpacity={0.3} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Channel Detail Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-heading">渠道明细</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>渠道</TableHead>
-                    <TableHead className="text-right">销售额(万)</TableHead>
-                    <TableHead className="text-right">占比</TableHead>
-                    <TableHead className="text-right">订单数</TableHead>
-                    <TableHead className="text-right">客单价(元)</TableHead>
-                    <TableHead className="text-right">ROI</TableHead>
-                    <TableHead>趋势</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {CHANNEL_DETAIL.map((r) => (
-                    <TableRow key={r.channel}>
-                      <TableCell className="font-medium">{r.channel}</TableCell>
-                      <TableCell className="text-right">{r.sales.toFixed(1)}</TableCell>
-                      <TableCell className="text-right">{r.share}%</TableCell>
-                      <TableCell className="text-right">{r.orders.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">{r.aov}</TableCell>
-                      <TableCell className="text-right font-medium">{r.roi}</TableCell>
-                      <TableCell>
-                        {r.trend === 'up' ? (
-                          <TrendingUp className="h-4 w-4 text-success" />
-                        ) : r.trend === 'down' ? (
-                          <TrendingDown className="h-4 w-4 text-destructive" />
-                        ) : (
-                          <span className="text-xs text-muted-foreground">平稳</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ================================================================ */}
-        {/* Tab 3: 自播ROI分析 */}
-        {/* ================================================================ */}
-        <TabsContent value="self-live" className="mt-6 flex flex-col gap-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {SELF_LIVE_STATS.map((s) => (
-              <Card key={s.label} size="sm">
-                <CardHeader className="pb-1">
-                  <CardDescription className="text-xs text-muted-foreground">{s.label}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-xl font-bold font-heading text-foreground">{s.value}</div>
-                  <div className="text-xs text-muted-foreground mt-1">{s.sub}</div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* ROI Trend + Metrics */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base font-heading">自播ROI趋势</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={SELF_LIVE_ROI_TREND}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
-                    <YAxis tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'var(--popover)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius)',
-                      }}
-                    />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="roi"
-                      name="自播ROI"
-                      stroke="var(--chart-1)"
-                      strokeWidth={2.5}
-                      dot={{ r: 4, fill: 'var(--chart-1)' }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="gpm"
-                      name="GPM(万)"
-                      stroke="var(--chart-3)"
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base font-heading">UV 与 转化率</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <ComposedChart data={SELF_LIVE_ROI_TREND}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
-                    <YAxis yAxisId="left" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
-                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'var(--popover)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius)',
-                      }}
-                    />
-                    <Legend />
-                    <Bar
-                      yAxisId="left"
-                      dataKey="uv"
-                      name="UV"
-                      fill="var(--chart-1)"
-                      radius={[4, 4, 0, 0]}
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="conversion"
-                      name="转化率(%)"
-                      stroke="var(--chart-3)"
-                      strokeWidth={2.5}
-                      dot={{ r: 4, fill: 'var(--chart-3)' }}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* ================================================================ */}
-        {/* Tab 4: 达播ROI分析 */}
-        {/* ================================================================ */}
-        <TabsContent value="affiliate-live" className="mt-6 flex flex-col gap-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {AFFILIATE_LIVE_STATS.map((s) => (
-              <Card key={s.label} size="sm">
-                <CardHeader className="pb-1">
-                  <CardDescription className="text-xs text-muted-foreground">{s.label}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-xl font-bold font-heading text-foreground">{s.value}</div>
-                  <div className="text-xs text-muted-foreground mt-1">{s.sub}</div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base font-heading">达播ROI趋势</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={AFFILIATE_LIVE_ROI_TREND}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
-                    <YAxis tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'var(--popover)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius)',
-                      }}
-                    />
-                    <Legend />
-                    <Bar dataKey="roi" name="ROI" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="commission" name="佣金(万)" fill="var(--chart-4)" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base font-heading">达播GMV趋势</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={AFFILIATE_LIVE_ROI_TREND}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
-                    <YAxis tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'var(--popover)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius)',
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="gmv"
-                      name="达播GMV(万)"
-                      stroke="var(--chart-3)"
-                      fill="var(--chart-3)"
-                      fillOpacity={0.3}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* ================================================================ */}
-        {/* Tab 5: SKU经营分析 */}
-        {/* ================================================================ */}
-        <TabsContent value="sku" className="mt-6 flex flex-col gap-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <StatCard title="活跃SKU数" value="160" sub="上月 164" trend="down" icon={Package} />
-            <StatCard title="平均毛利率" value="38.5%" sub="同比 +1.2pp" trend="up" icon={TrendingUp} />
-            <StatCard title="爆品SKU数" value="12" sub="占毛利润 42%" trend="up" icon={Zap} />
-            <StatCard title="亏损SKU数" value="64" sub="占总SKU 40%" trend="down" icon={AlertTriangle} />
-          </div>
-
-          {/* SKU Profit Scatter */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base font-heading">SKU利润矩阵</CardTitle>
-                <CardDescription>毛利率 vs 毛利润占比，气泡大小 = 销售额</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={320}>
-                  <ComposedChart data={SKU_PROFIT_MATRIX}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis
-                      dataKey="margin"
-                      tick={{ fontSize: 12 }}
-                      stroke="var(--muted-foreground)"
-                      label={{ value: '毛利率(%)', position: 'bottom', style: { fontSize: 12 } }}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 12 }}
-                      stroke="var(--muted-foreground)"
-                      label={{ value: '毛利润占比(%)', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'var(--popover)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius)',
-                      }}
-                    />
-                    <Bar dataKey="share" name="毛利润占比" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* SKU Performance Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base font-heading">TOP 8 SKU表现</CardTitle>
-              </CardHeader>
-              <CardContent>
+              {categoryNames.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-4 text-center">暂无商品数据</div>
+              ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>#</TableHead>
-                      <TableHead>SKU</TableHead>
-                      <TableHead className="text-right">销售(万)</TableHead>
-                      <TableHead className="text-right">毛利率</TableHead>
-                      <TableHead className="text-right">ROI</TableHead>
+                      <TableHead>类目</TableHead>
+                      <TableHead className="text-right">SKU数</TableHead>
+                      <TableHead className="text-right">库存量</TableHead>
+                      <TableHead className="text-right">估值(万)</TableHead>
+                      <TableHead className="text-right">周转天数</TableHead>
+                      <TableHead>状态</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {SKU_PERFORMANCE.map((r) => (
-                      <TableRow key={r.sku}>
-                        <TableCell className="font-medium text-muted-foreground">{r.rank}</TableCell>
-                        <TableCell className="font-medium max-w-32 truncate">{r.sku}</TableCell>
-                        <TableCell className="text-right">{r.sales}</TableCell>
-                        <TableCell className="text-right">
-                          <span style={{ color: r.margin >= 40 ? 'var(--success)' : r.margin >= 30 ? 'var(--warning)' : 'var(--destructive)' }}>
-                            {r.margin}%
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right font-medium">{r.roi}</TableCell>
-                      </TableRow>
-                    ))}
+                    {inventoryByCategory.map((cat) => {
+                      const agg = categoryAgg.get(cat.category);
+                      const count = agg?.count ?? 0;
+                      const value = agg?.totalValue ?? 0;
+                      const turnover = cat.turnover;
+                      const status: 'healthy' | 'warning' | 'danger' =
+                        turnover === 0 ? 'danger' : turnover <= 30 ? 'healthy' : turnover <= 45 ? 'warning' : 'danger';
+                      return (
+                        <TableRow key={cat.category}>
+                          <TableCell className="font-medium">{cat.category}</TableCell>
+                          <TableCell className="text-right">{count}</TableCell>
+                          <TableCell className="text-right">{cat.value.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{fmtCurrencyWan(value)}</TableCell>
+                          <TableCell className="text-right">
+                            <span
+                              className={
+                                turnover === 0
+                                  ? 'text-destructive'
+                                  : turnover <= 30
+                                    ? 'text-success'
+                                    : turnover <= 45
+                                      ? 'text-warning'
+                                      : 'text-destructive'
+                              }
+                            >
+                              {turnover === 0 ? '—' : `${turnover}天`}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={statusVariant(status)}>
+                              {status === 'healthy' ? '健康' : status === 'warning' ? '警戒' : '危险'}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
-              </CardContent>
-            </Card>
-          </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ================================================================ */}
-        {/* Tab 6: 供应链采购分析 */}
+        {/* Tab 2: 出库类型分析 */}
         {/* ================================================================ */}
-        <TabsContent value="procurement" className="mt-6 flex flex-col gap-6">
+        <TabsContent value="channel" className="mt-6 flex flex-col gap-6">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {PROCUREMENT_STATS.map((s) => (
-              <Card key={s.label} size="sm">
-                <CardHeader className="pb-1">
-                  <CardDescription className="text-xs text-muted-foreground">{s.label}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-xl font-bold font-heading text-foreground">{s.value}</div>
-                  <div className="text-xs text-muted-foreground mt-1">{s.sub}</div>
-                </CardContent>
-              </Card>
-            ))}
+            <StatCard title="出库总额" value={fmtCurrencyWan(totalOutboundAmount)} sub={`${outbounds.length} 笔`} trend="up" icon={Store} />
+            <StatCard title="出库类型数" value={String(outboundByType.length)} sub="按类型分布" trend="neutral" icon={ShoppingCart} />
+            <StatCard
+              title="平均单笔金额"
+              value={outbounds.length > 0 ? fmtCurrency(totalOutboundAmount / outbounds.length) : '—'}
+              sub="按出库单据"
+              trend="neutral"
+              icon={DollarSign}
+            />
+            <StatCard
+              title="最大类型占比"
+              value={outboundByType.length > 0 ? `${outboundByType[0].value}%` : '—'}
+              sub={outboundByType.length > 0 ? outboundByType[0].name : '—'}
+              trend="up"
+              icon={BarChart3}
+            />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Procurement Trend */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base font-heading">采购金额趋势</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <ComposedChart data={PROCUREMENT_TREND}>
+          {/* Outbound Type Trend Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-heading">出库类型趋势</CardTitle>
+              <CardDescription>单位：万元 · 主要出库类型月度趋势</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {outboundMonthlyByType.length === 0 ? (
+                <div className="flex items-center justify-center h-80 text-sm text-muted-foreground">
+                  暂无出库数据
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={320}>
+                  <AreaChart data={outboundMonthlyByType}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                     <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
                     <YAxis tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
@@ -1122,53 +1123,572 @@ export function InventoryView() {
                         border: '1px solid var(--border)',
                         borderRadius: 'var(--radius)',
                       }}
+                      formatter={(val: unknown) => `${Number(val).toFixed(1)}万`}
                     />
                     <Legend />
-                    <Bar dataKey="amount" name="实际采购" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
-                    <Line
-                      type="monotone"
-                      dataKey="planned"
-                      name="计划采购"
-                      stroke="var(--chart-4)"
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      dot={{ r: 4 }}
-                    />
-                  </ComposedChart>
+                    {Object.keys(outboundMonthlyByType[0] ?? {})
+                      .filter((k) => k !== 'month')
+                      .map((type, idx) => (
+                        <Area
+                          key={type}
+                          type="monotone"
+                          dataKey={type}
+                          stackId="1"
+                          stroke={CHART_COLORS[idx % CHART_COLORS.length]}
+                          fill={CHART_COLORS[idx % CHART_COLORS.length]}
+                          fillOpacity={0.3}
+                        />
+                      ))}
+                  </AreaChart>
                 </ResponsiveContainer>
-              </CardContent>
-            </Card>
+              )}
+            </CardContent>
+          </Card>
 
-            {/* Supplier Performance */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base font-heading">供应商绩效</CardTitle>
-              </CardHeader>
-              <CardContent>
+          {/* Outbound Type Detail Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-heading">出库类型明细</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {outboundByType.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-4 text-center">暂无出库数据</div>
+              ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>供应商</TableHead>
-                      <TableHead className="text-right">订单</TableHead>
-                      <TableHead className="text-right">准时率</TableHead>
-                      <TableHead className="text-right">评分</TableHead>
+                      <TableHead>出库类型</TableHead>
+                      <TableHead className="text-right">金额(万)</TableHead>
+                      <TableHead className="text-right">占比</TableHead>
+                      <TableHead className="text-right">单据数</TableHead>
+                      <TableHead className="text-right">平均单笔(元)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {SUPPLIER_PERFORMANCE.map((r) => (
-                      <TableRow key={r.supplier}>
-                        <TableCell className="font-medium max-w-32 truncate">{r.supplier}</TableCell>
-                        <TableCell className="text-right">{r.orders}</TableCell>
+                    {outboundByType.map((r) => (
+                      <TableRow key={r.name}>
+                        <TableCell className="font-medium">{r.name}</TableCell>
+                        <TableCell className="text-right">{fmtCurrencyWan(r.amount)}</TableCell>
+                        <TableCell className="text-right">{r.value}%</TableCell>
+                        <TableCell className="text-right">{r.count}</TableCell>
                         <TableCell className="text-right">
-                          <span style={{ color: r.onTime >= 90 ? 'var(--success)' : r.onTime >= 85 ? 'var(--warning)' : 'var(--destructive)' }}>
-                            {r.onTime}%
-                          </span>
+                          {r.count > 0 ? fmtCurrency(r.amount / r.count) : '—'}
                         </TableCell>
-                        <TableCell className="text-right font-medium">{r.score}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ================================================================ */}
+        {/* Tab 3: 出库趋势分析 */}
+        {/* ================================================================ */}
+        <TabsContent value="self-live" className="mt-6 flex flex-col gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <Card size="sm">
+              <CardHeader className="pb-1">
+                <CardDescription className="text-xs text-muted-foreground">出库总额</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-heading text-foreground">{fmtCurrencyWan(totalOutboundAmount)}</div>
+                <div className="text-xs text-muted-foreground mt-1">{outbounds.length} 笔</div>
+              </CardContent>
+            </Card>
+            <Card size="sm">
+              <CardHeader className="pb-1">
+                <CardDescription className="text-xs text-muted-foreground">出库类型数</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-heading text-foreground">{outboundByType.length}</div>
+                <div className="text-xs text-muted-foreground mt-1">种类型</div>
+              </CardContent>
+            </Card>
+            <Card size="sm">
+              <CardHeader className="pb-1">
+                <CardDescription className="text-xs text-muted-foreground">已完成出库</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-heading text-foreground">
+                  {outbounds.filter((o) => o.status === 'completed').length}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">笔</div>
+              </CardContent>
+            </Card>
+            <Card size="sm">
+              <CardHeader className="pb-1">
+                <CardDescription className="text-xs text-muted-foreground">最近出库</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-heading text-foreground">
+                  {outbounds.length > 0 ? fmtShortDate(outbounds[0].outboundDate) : '—'}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">最近日期</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-heading">出库金额趋势</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {outboundMonthly.length === 0 ? (
+                  <div className="flex items-center justify-center h-72 text-sm text-muted-foreground">
+                    暂无出库数据
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={outboundMonthly}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
+                      <YAxis tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--popover)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
+                        }}
+                        formatter={(val) => fmtCurrency(val as any)}
+                      />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="amount"
+                        name="出库金额"
+                        stroke="var(--chart-1)"
+                        strokeWidth={2.5}
+                        dot={{ r: 4, fill: 'var(--chart-1)' }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="count"
+                        name="出库笔数"
+                        stroke="var(--chart-3)"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-heading">出库类型分布</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {outboundByType.length === 0 ? (
+                  <div className="flex items-center justify-center h-72 text-sm text-muted-foreground">
+                    暂无出库数据
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <ComposedChart data={outboundByType}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
+                      <YAxis yAxisId="left" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--popover)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
+                        }}
+                      />
+                      <Legend />
+                      <Bar
+                        yAxisId="left"
+                        dataKey="amount"
+                        name="金额"
+                        fill="var(--chart-1)"
+                        radius={[4, 4, 0, 0]}
+                      />
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="count"
+                        name="单据数"
+                        stroke="var(--chart-3)"
+                        strokeWidth={2.5}
+                        dot={{ r: 4, fill: 'var(--chart-3)' }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* ================================================================ */}
+        {/* Tab 4: 入库趋势分析 */}
+        {/* ================================================================ */}
+        <TabsContent value="affiliate-live" className="mt-6 flex flex-col gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <Card size="sm">
+              <CardHeader className="pb-1">
+                <CardDescription className="text-xs text-muted-foreground">入库总额</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-heading text-foreground">{fmtCurrencyWan(totalInboundAmount)}</div>
+                <div className="text-xs text-muted-foreground mt-1">{inbounds.length} 笔</div>
+              </CardContent>
+            </Card>
+            <Card size="sm">
+              <CardHeader className="pb-1">
+                <CardDescription className="text-xs text-muted-foreground">入库类型数</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-heading text-foreground">{inboundByType.length}</div>
+                <div className="text-xs text-muted-foreground mt-1">种类型</div>
+              </CardContent>
+            </Card>
+            <Card size="sm">
+              <CardHeader className="pb-1">
+                <CardDescription className="text-xs text-muted-foreground">已完成入库</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-heading text-foreground">
+                  {inbounds.filter((ib) => ib.status === 'completed').length}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">笔</div>
+              </CardContent>
+            </Card>
+            <Card size="sm">
+              <CardHeader className="pb-1">
+                <CardDescription className="text-xs text-muted-foreground">最近入库</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-heading text-foreground">
+                  {inbounds.length > 0 ? fmtShortDate(inbounds[0].inboundDate) : '—'}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">最近日期</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-heading">入库金额趋势</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {inboundMonthly.length === 0 ? (
+                  <div className="flex items-center justify-center h-72 text-sm text-muted-foreground">
+                    暂无入库数据
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={inboundMonthly}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
+                      <YAxis tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--popover)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
+                        }}
+                        formatter={(val) => fmtCurrency(val as any)}
+                      />
+                      <Legend />
+                      <Bar dataKey="amount" name="入库金额" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="count" name="入库笔数" fill="var(--chart-4)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-heading">入库类型分布</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {inboundByType.length === 0 ? (
+                  <div className="flex items-center justify-center h-72 text-sm text-muted-foreground">
+                    暂无入库数据
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={inboundByType}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
+                      <YAxis tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--popover)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="amount"
+                        name="入库金额"
+                        stroke="var(--chart-3)"
+                        fill="var(--chart-3)"
+                        fillOpacity={0.3}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* ================================================================ */}
+        {/* Tab 5: 商品SKU分析 */}
+        {/* ================================================================ */}
+        <TabsContent value="sku" className="mt-6 flex flex-col gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <StatCard title="SKU总数" value={String(items.length)} sub={`${categoryNames.length} 个类目`} trend="neutral" icon={Package} />
+            <StatCard
+              title="健康SKU"
+              value={String(items.filter((i) => i.quantity > i.safetyStock).length)}
+              sub={items.length > 0 ? fmtPct((items.filter((i) => i.quantity > i.safetyStock).length / items.length) * 100) : '—'}
+              trend="up"
+              icon={TrendingUp}
+            />
+            <StatCard title="低库存SKU" value={String(lowStockItems.length)} sub="需补货" trend={lowStockItems.length > 0 ? 'down' : 'up'} icon={Zap} />
+            <StatCard title="缺货SKU" value={String(items.filter((i) => i.quantity === 0).length)} sub="库存为零" trend="down" icon={AlertTriangle} />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Category Distribution */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-heading">类目库存分布</CardTitle>
+                <CardDescription>各类目库存量 vs SKU数</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {inventoryByCategory.length === 0 ? (
+                  <div className="flex items-center justify-center h-72 text-sm text-muted-foreground">
+                    暂无商品数据
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={320}>
+                    <ComposedChart data={inventoryByCategory.map((c) => ({
+                      ...c,
+                      count: categoryAgg.get(c.category)?.count ?? 0,
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis
+                        dataKey="category"
+                        tick={{ fontSize: 12 }}
+                        stroke="var(--muted-foreground)"
+                      />
+                      <YAxis
+                        tick={{ fontSize: 12 }}
+                        stroke="var(--muted-foreground)"
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--popover)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
+                        }}
+                      />
+                      <Bar dataKey="value" name="库存量" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* SKU Detail Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-heading">商品明细列表</CardTitle>
+                <CardDescription>按入库时间倒序，最多显示 20 条</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {items.length === 0 ? (
+                  <div className="text-sm text-muted-foreground py-4 text-center">暂无商品数据</div>
+                ) : (
+                  <div className="max-h-80 overflow-auto custom-scrollbar">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>SKU名称</TableHead>
+                          <TableHead className="text-right">库存</TableHead>
+                          <TableHead className="text-right">安全库存</TableHead>
+                          <TableHead>状态</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {items.slice(0, 20).map((item) => {
+                          const status = itemStatus(item);
+                          return (
+                            <TableRow key={String(item.id)}>
+                              <TableCell className="font-medium max-w-40 truncate" title={item.skuName}>
+                                {item.skuName}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <span
+                                  style={{
+                                    color:
+                                      item.quantity === 0
+                                        ? 'var(--destructive)'
+                                        : item.quantity <= item.safetyStock
+                                          ? 'var(--warning)'
+                                          : 'var(--success)',
+                                  }}
+                                >
+                                  {item.quantity}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right text-muted-foreground">{item.safetyStock}</TableCell>
+                              <TableCell>
+                                <Badge variant={statusVariant(status)}>
+                                  {status === 'healthy' ? '正常' : status === 'warning' ? '低库存' : '缺货'}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* ================================================================ */}
+        {/* Tab 6: 采购入库明细 */}
+        {/* ================================================================ */}
+        <TabsContent value="procurement" className="mt-6 flex flex-col gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <Card size="sm">
+              <CardHeader className="pb-1">
+                <CardDescription className="text-xs text-muted-foreground">入库总额</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-heading text-foreground">{fmtCurrencyWan(totalInboundAmount)}</div>
+                <div className="text-xs text-muted-foreground mt-1">{inbounds.length} 笔入库</div>
+              </CardContent>
+            </Card>
+            <Card size="sm">
+              <CardHeader className="pb-1">
+                <CardDescription className="text-xs text-muted-foreground">入库单据数</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-heading text-foreground">{inbounds.length}</div>
+                <div className="text-xs text-muted-foreground mt-1">已完成 {inbounds.filter((ib) => ib.status === 'completed').length} 笔</div>
+              </CardContent>
+            </Card>
+            <Card size="sm">
+              <CardHeader className="pb-1">
+                <CardDescription className="text-xs text-muted-foreground">涉及仓库</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-heading text-foreground">
+                  {new Set(inbounds.map((ib) => ib.warehouse)).size}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">个仓库</div>
+              </CardContent>
+            </Card>
+            <Card size="sm">
+              <CardHeader className="pb-1">
+                <CardDescription className="text-xs text-muted-foreground">入库商品总件数</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-heading text-foreground">
+                  {inbounds.reduce((s, ib) => s + ib.itemCount, 0).toLocaleString()}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">件</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Inbound Trend */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-heading">入库金额趋势</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {inboundMonthly.length === 0 ? (
+                  <div className="flex items-center justify-center h-72 text-sm text-muted-foreground">
+                    暂无入库数据
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <ComposedChart data={inboundMonthly}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
+                      <YAxis tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--popover)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
+                        }}
+                        formatter={(val) => fmtCurrency(val as any)}
+                      />
+                      <Legend />
+                      <Bar dataKey="amount" name="入库金额" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+                      <Line
+                        type="monotone"
+                        dataKey="count"
+                        name="入库笔数"
+                        stroke="var(--chart-4)"
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Inbound by Warehouse */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-heading">入库仓库分布</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {inbounds.length === 0 ? (
+                  <div className="text-sm text-muted-foreground py-4 text-center">暂无入库数据</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>仓库</TableHead>
+                        <TableHead className="text-right">单据数</TableHead>
+                        <TableHead className="text-right">金额(万)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(() => {
+                        const byWarehouse = new Map<string, { count: number; amount: number }>();
+                        inbounds.forEach((ib) => {
+                          const entry = byWarehouse.get(ib.warehouse) ?? { count: 0, amount: 0 };
+                          entry.count++;
+                          entry.amount += n(ib.totalAmount);
+                          byWarehouse.set(ib.warehouse, entry);
+                        });
+                        return Array.from(byWarehouse.entries())
+                          .sort(([, a], [, b]) => b.amount - a.amount)
+                          .map(([wh, data]) => (
+                            <TableRow key={wh}>
+                              <TableCell className="font-medium max-w-32 truncate">{wh}</TableCell>
+                              <TableCell className="text-right">{data.count}</TableCell>
+                              <TableCell className="text-right font-medium">{fmtCurrencyWan(data.amount)}</TableCell>
+                            </TableRow>
+                          ));
+                      })()}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -1179,46 +1699,76 @@ export function InventoryView() {
         {/* ================================================================ */}
         <TabsContent value="inventory" className="mt-6 flex flex-col gap-6">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {INVENTORY_STATS.map((s) => (
-              <Card key={s.label} size="sm">
-                <CardHeader className="pb-1">
-                  <CardDescription className="text-xs text-muted-foreground">{s.label}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-xl font-bold font-heading text-foreground">{s.value}</div>
-                  <div className="text-xs text-muted-foreground mt-1">{s.sub}</div>
-                </CardContent>
-              </Card>
-            ))}
+            <Card size="sm">
+              <CardHeader className="pb-1">
+                <CardDescription className="text-xs text-muted-foreground">库存SKU数</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-heading text-foreground">{stockSummary?.totalItems ?? 0}</div>
+                <div className="text-xs text-muted-foreground mt-1">{categoryNames.length} 个类目</div>
+              </CardContent>
+            </Card>
+            <Card size="sm">
+              <CardHeader className="pb-1">
+                <CardDescription className="text-xs text-muted-foreground">库存总量</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-heading text-foreground">{stockSummary?.totalQuantity?.toLocaleString() ?? 0}</div>
+                <div className="text-xs text-muted-foreground mt-1">件</div>
+              </CardContent>
+            </Card>
+            <Card size="sm">
+              <CardHeader className="pb-1">
+                <CardDescription className="text-xs text-muted-foreground">低库存预警</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-heading text-foreground">{stockSummary?.lowStockCount ?? 0}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {stockSummary?.lowStockCount && stockSummary.lowStockCount > 0 ? '需关注' : '正常'}
+                </div>
+              </CardContent>
+            </Card>
+            <Card size="sm">
+              <CardHeader className="pb-1">
+                <CardDescription className="text-xs text-muted-foreground">库存估值</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-heading text-foreground">{fmtCurrencyWan(totalItemValue)}</div>
+                <div className="text-xs text-muted-foreground mt-1">基于成本价</div>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Inventory Structure */}
+            {/* Inventory Structure by Category */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base font-heading">库存结构</CardTitle>
+                <CardTitle className="text-base font-heading">库存类目结构</CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={INVENTORY_STRUCTURE} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis type="number" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
-                    <YAxis type="category" dataKey="category" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" width={80} />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'var(--popover)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius)',
-                      }}
-                      formatter={(val, name) => [
-                        name === 'value' ? `¥${val}万` : `${val}天`,
-                        name === 'value' ? '库存额' : '周转天数',
-                      ]}
-                    />
-                    <Legend />
-                    <Bar dataKey="value" name="库存额(万)" fill="var(--chart-1)" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {inventoryByCategory.length === 0 ? (
+                  <div className="flex items-center justify-center h-72 text-sm text-muted-foreground">
+                    暂无库存数据
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={inventoryByCategory} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis type="number" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
+                      <YAxis type="category" dataKey="category" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" width={80} />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--popover)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
+                        }}
+                        formatter={(val: unknown) => `${Number(val)}件`}
+                      />
+                      <Legend />
+                      <Bar dataKey="value" name="库存量" fill="var(--chart-1)" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
 
@@ -1231,34 +1781,54 @@ export function InventoryView() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>SKU</TableHead>
-                      <TableHead className="text-right">库存</TableHead>
-                      <TableHead className="text-right">可售天数</TableHead>
-                      <TableHead>状态</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {INVENTORY_ALERTS.map((r) => (
-                      <TableRow key={r.sku}>
-                        <TableCell className="font-medium max-w-32 truncate">{r.sku}</TableCell>
-                        <TableCell className="text-right">{r.stock}</TableCell>
-                        <TableCell className="text-right">
-                          <span style={{ color: r.days <= 10 ? 'var(--destructive)' : r.days >= 60 ? 'var(--destructive)' : r.days >= 30 ? 'var(--warning)' : 'var(--success)' }}>
-                            {r.days}天
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={r.status === '高滞销' ? 'destructive' : r.status === '即将缺货' ? 'destructive' : 'secondary'}>
-                            {r.status}
-                          </Badge>
-                        </TableCell>
+                {lowStockItems.length === 0 ? (
+                  <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                    所有商品库存充足，无预警项。
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>SKU</TableHead>
+                        <TableHead className="text-right">库存</TableHead>
+                        <TableHead className="text-right">安全库存</TableHead>
+                        <TableHead>状态</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {lowStockItems.map((item) => {
+                        const alertStatus = item.quantity === 0 ? '缺货' : '低库存';
+                        return (
+                          <TableRow key={String(item.id)}>
+                            <TableCell className="font-medium max-w-32 truncate" title={item.skuName}>
+                              {item.skuName}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span
+                                style={{
+                                  color:
+                                    item.quantity === 0
+                                      ? 'var(--destructive)'
+                                      : 'var(--warning)',
+                                }}
+                              >
+                                {item.quantity}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right text-muted-foreground">{item.safetyStock}</TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={item.quantity === 0 ? 'destructive' : 'secondary'}
+                              >
+                                {alertStatus}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </div>

@@ -1,128 +1,90 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAppStore } from '@/lib/store';
 import { canAccess } from '@/lib/navigation';
+import { trpc } from '@/lib/trpc-client';
+import { cn } from '@/lib/utils';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RippleContainer } from '@/components/custom/RippleContainer';
-import { ArrowRight, AlertTriangle } from 'lucide-react';
+import { ArrowRight, AlertTriangle, Loader2, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ViewId } from '@/lib/types';
 
+// ============================================================
+// Types & Constants
+// ============================================================
+
 type PaymentStatusGroup = 'pending' | 'processing' | 'completed';
-
-interface PaymentTask {
-  id: string;
-  to: string;
-  acct: string;
-  amount: string;
-  approval: string;
-  check: string;
-  status: string;
-  statusKind: 'warning' | 'destructive' | 'success';
-  group: PaymentStatusGroup;
-}
-
-const paymentTasks: PaymentTask[] = [
-  {
-    id: 'FK-202607-0138',
-    to: '上海云仓科技',
-    acct: '招行基本户 8888',
-    amount: '¥113,000.00',
-    approval: '三级审批齐全/合同订单发票可查',
-    check: '余额充足/本单中需要支付',
-    status: '待付款',
-    statusKind: 'warning',
-    group: 'pending',
-  },
-  {
-    id: 'FK-202607-0142',
-    to: '周晓敏',
-    acct: '工行一般户 6621',
-    amount: '¥3,842.50',
-    approval: '缺主管审批/系统已阻断支付',
-    check: '余额充足',
-    status: '禁止付款',
-    statusKind: 'destructive',
-    group: 'pending',
-  },
-  {
-    id: 'FK-202607-0145',
-    to: '迅捷物流有限公司',
-    acct: '招行基本户 8888',
-    amount: '¥12,800.00',
-    approval: '审批齐全/余额及对账单完整',
-    check: '接近单日限额',
-    status: '待审批提醒',
-    statusKind: 'warning',
-    group: 'pending',
-  },
-  {
-    id: 'FK-202607-0136',
-    to: '杭州云启科技有限公司',
-    acct: '招行基本户 8888',
-    amount: '¥86,392.18',
-    approval: '审批齐全/合同订单发票一致',
-    check: '余额充足',
-    status: '付款中',
-    statusKind: 'warning',
-    group: 'processing',
-  },
-  {
-    id: 'FK-202607-0129',
-    to: '抖音支付科技',
-    acct: '招行基本户 8888',
-    amount: '¥48,200.00',
-    approval: '审批齐全/平台结算单匹配',
-    check: '余额充足',
-    status: '已付款',
-    statusKind: 'success',
-    group: 'completed',
-  },
-  {
-    id: 'FK-202607-0132',
-    to: '迅捷物流有限公司',
-    acct: '工行一般户 6621',
-    amount: '¥4,280.00',
-    approval: '审批齐全/物流对账单一致',
-    check: '余额充足',
-    status: '已付款',
-    statusKind: 'success',
-    group: 'completed',
-  },
-];
-
-const receiptRows = [
-  {
-    serial: '755901 · 07-12',
-    source: '抖音支付科技·平台结算批次',
-    account: '招行基本户 8888',
-    amount: '¥86,392.18',
-    match: '已匹配结算单',
-    matchKind: 'success' as const,
-    status: '待确认入账',
-  },
-  {
-    serial: 'IN2026071506 · 07-15',
-    source: '客户来款·销售订单',
-    account: '杭州远海贸易·工行一般户 6621',
-    amount: '¥48,200.00',
-    match: '待核对客户',
-    matchKind: 'warning' as const,
-    status: '待确认入账',
-  },
-];
+type StatusKind = 'warning' | 'destructive' | 'success';
 
 const tabs = [
   { key: 'pending', label: '待处理' },
   { key: 'processing', label: '处理中' },
   { key: 'completed', label: '已完成' },
 ] as const;
+
+const flowSteps = [
+  '1 接收已审批任务',
+  '2 付款前核验',
+  '3 执行付款',
+  '4 回单与移交',
+  '5 资金凭证签字',
+];
+
+// ============================================================
+// Helpers
+// ============================================================
+
+/** Format a Decimal / number / string to ¥X.XX */
+function fmtAmount(n: unknown): string {
+  const v = Number(n ?? 0);
+  return `¥${v.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`;
+}
+
+/** Format a date-like value to YYYY-MM-DD */
+function fmtDate(d: unknown): string {
+  if (d instanceof Date) return d.toISOString().slice(0, 10);
+  const s = String(d ?? '');
+  return s.slice(0, 10);
+}
+
+/** Format a DB id + createdAt into "FK-YYYYMM-NNNN" style */
+function formatPaymentId(id: unknown, createdAt: unknown): string {
+  const numId = String(id ?? '');
+  const dateStr = fmtDate(createdAt);
+  // Extract YYYYMM from YYYY-MM-DD
+  const yyyymm = dateStr.replace(/-/g, '').slice(0, 6);
+  return `FK-${yyyymm}-${numId.padStart(4, '0')}`;
+}
+
+/** Derive display status label and badge kind from payment + approval status */
+function getStatusInfo(paymentStatus: string, approvalStatus: string): { label: string; kind: StatusKind } {
+  const isBlocked =
+    approvalStatus.includes('缺') ||
+    approvalStatus.includes('阻断') ||
+    approvalStatus.includes('不足') ||
+    approvalStatus.includes('未');
+
+  if (paymentStatus === 'pending') {
+    if (isBlocked) return { label: '禁止付款', kind: 'destructive' };
+    return { label: '待付款', kind: 'warning' };
+  }
+  if (paymentStatus === 'processing') return { label: '付款中', kind: 'warning' };
+  if (paymentStatus === 'completed') return { label: '已付款', kind: 'success' };
+  return { label: paymentStatus || '—', kind: 'warning' };
+}
+
+// ============================================================
+// Navigation hook
+// ============================================================
 
 function useNavigateWithAccess() {
   const { setView, currentRole, isPresentationMode } = useAppStore();
@@ -138,12 +100,147 @@ function useNavigateWithAccess() {
   return navigate;
 }
 
+// ============================================================
+// Skeleton placeholders
+// ============================================================
+
+function StatCardSkeleton() {
+  return (
+    <Card className="elevation-1">
+      <CardContent className="pt-4 space-y-2">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-7 w-36" />
+        <Skeleton className="h-3 w-20" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function TableSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: rows }).map((_, i) => (
+        <Skeleton key={i} className="h-8 w-full" />
+      ))}
+    </div>
+  );
+}
+
+// ============================================================
+// CashManagementView
+// ============================================================
+
 export function CashManagementView() {
   const [activeTab, setActiveTab] = useState<PaymentStatusGroup>('pending');
   const navigate = useNavigateWithAccess();
+  const utils = trpc.useUtils();
+
+  // ─── Queries ──────────────────────────────────────────────────
+
+  const accountsQuery = trpc.bank.listAccounts.useQuery();
+  const statsQuery = trpc.payment.stats.useQuery();
+  const paymentsQuery = trpc.payment.list.useQuery(
+    { group: activeTab, limit: 50, offset: 0 },
+  );
+
+  // For receipt table: fetch transactions of first bank account (inflows)
+  const firstAccountId = accountsQuery.data?.[0]?.id;
+  const transactionsQuery = trpc.bank.transactions.useQuery(
+    { accountId: Number(firstAccountId ?? 0), limit: 10, offset: 0 },
+    { enabled: !!firstAccountId },
+  );
+
+  // ─── Mutation ─────────────────────────────────────────────────
+
+  const executeMutation = trpc.payment.execute.useMutation({
+    onSuccess: () => {
+      toast.success('付款已执行');
+      utils.payment.list.invalidate();
+      utils.payment.stats.invalidate();
+      utils.bank.listAccounts.invalidate();
+      if (firstAccountId) {
+        utils.bank.transactions.invalidate({ accountId: Number(firstAccountId) });
+      }
+    },
+    onError: (err) => {
+      toast.error(err.message || '付款执行失败，请重试');
+    },
+  });
+
+  // ─── Computed ─────────────────────────────────────────────────
+
+  const accounts = accountsQuery.data ?? [];
+  const availableFunds = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
+  const stats = statsQuery.data ?? { pending: 0, processing: 0, completed: 0 };
+  const paymentTasks = paymentsQuery.data?.items ?? [];
+
+  // Build a lookup map: bankAccountId → account info
+  const accountMap = useMemo(() => {
+    const map = new Map<string, { name: string; bankName: string; accountNo: string }>();
+    for (const a of accounts) {
+      map.set(String(a.id), {
+        name: a.accountName,
+        bankName: a.bankName,
+        accountNo: a.accountNo,
+      });
+    }
+    return map;
+  }, [accounts]);
+
+  // Receipt rows from inflow transactions
+  const receiptRows = useMemo(() => {
+    if (!transactionsQuery.data?.items) return [];
+    const inflowItems = transactionsQuery.data.items.filter(
+      (tx) => tx.type === 'inflow',
+    );
+    return inflowItems.map((tx) => {
+      const acctInfo = accountMap.get(String(tx.bankAccountId));
+      const accountLabel = acctInfo
+        ? `${acctInfo.bankName} ${acctInfo.name} ${acctInfo.accountNo}`
+        : '—';
+      const hasCounterparty = Boolean(tx.counterparty);
+      return {
+        serial: `${String(tx.id).padStart(6, '0')} · ${fmtDate(tx.transactionDate).slice(5)}`,
+        source: tx.counterparty
+          ? `${tx.counterparty}·${tx.summary ?? '银行流水'}`
+          : (tx.summary ?? '银行流水'),
+        account: accountLabel,
+        amount: fmtAmount(tx.amount),
+        match: hasCounterparty ? '已匹配' : '待核对',
+        matchKind: (hasCounterparty ? 'success' : 'warning') as 'success' | 'warning',
+        status: '待确认入账',
+      };
+    });
+  }, [transactionsQuery.data, accountMap]);
+
+  // Tab counts
+  const tabCounts = {
+    pending: stats.pending,
+    processing: stats.processing,
+    completed: stats.completed,
+  };
+
+  // Pending total amount
+  const pendingAmount = useMemo(() => {
+    // Approximate: use the loaded payment tasks if on pending tab, else 0
+    // For a real implementation, a separate aggregation endpoint would be better
+    if (activeTab === 'pending') {
+      return paymentTasks.reduce((sum, t) => sum + Number(t.amount), 0);
+    }
+    return 0;
+  }, [activeTab, paymentTasks]);
+
+  const handleExecute = (id: unknown) => {
+    executeMutation.mutate({ id: Number(id) });
+  };
+
+  // ─── Render ───────────────────────────────────────────────────
+
   return (
     <div className="p-6 space-y-6">
-      {/* ========== Page Header ========== */}
+      {/* ================================================================ */}
+      {/* Page Header                                                      */}
+      {/* ================================================================ */}
       <div className="flex items-start justify-between">
         <div>
           <div className="text-xs text-muted-foreground uppercase tracking-wider">
@@ -165,7 +262,9 @@ export function CashManagementView() {
 
       <Separator />
 
-      {/* ========== Role Boundaries Note Block ========== */}
+      {/* ================================================================ */}
+      {/* Role Boundaries Note Block                                       */}
+      {/* ================================================================ */}
       <div className="bg-muted rounded-lg p-3 text-xs text-muted-foreground space-y-1">
         <p className="font-medium text-foreground">岗位边界：</p>
         <p>
@@ -176,53 +275,98 @@ export function CashManagementView() {
         </p>
       </div>
 
-      {/* ========== 4 Stat Cards ========== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="elevation-1">
-          <CardContent className="pt-4">
-            <div className="text-xs text-muted-foreground">可用银行余额</div>
-            <div className="text-lg font-bold font-mono mt-1">¥2,397,212.53</div>
-            <div className="text-[10px] text-muted-foreground">3个账户 · 已扣除冻结资金</div>
-          </CardContent>
-        </Card>
-        <Card className="elevation-1">
-          <CardContent className="pt-4">
-            <div className="text-xs text-muted-foreground">待付款任务</div>
-            <div className="text-lg font-bold mt-1">3 笔</div>
-            <div className="text-[10px] text-muted-foreground">合计 ¥129,642.50</div>
-          </CardContent>
-        </Card>
-        <Card className="elevation-1">
-          <CardContent className="pt-4">
-            <div className="text-xs text-muted-foreground">待确认收款</div>
-            <div className="text-lg font-bold mt-1">2 笔</div>
-            <div className="text-[10px] text-muted-foreground">合计 ¥134,592.18</div>
-          </CardContent>
-        </Card>
-        <Card className="elevation-1">
-          <CardContent className="pt-4">
-            <div className="text-xs text-muted-foreground">待移交回单</div>
-            <div className="text-lg font-bold mt-1">1 笔</div>
-            <div className="text-[10px] text-muted-foreground">付款后当日移交</div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* ================================================================ */}
+      {/* 4 Stat Cards                                                     */}
+      {/* ================================================================ */}
+      {accountsQuery.isLoading || statsQuery.isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+        </div>
+      ) : accountsQuery.isError ? (
+        <Alert variant="destructive">
+          <AlertTitle>账户数据加载失败</AlertTitle>
+          <AlertDescription>{accountsQuery.error.message}</AlertDescription>
+        </Alert>
+      ) : statsQuery.isError ? (
+        <Alert variant="destructive">
+          <AlertTitle>统计数据加载失败</AlertTitle>
+          <AlertDescription>{statsQuery.error.message}</AlertDescription>
+        </Alert>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="elevation-1">
+            <CardContent className="pt-4">
+              <div className="text-xs text-muted-foreground">可用银行余额</div>
+              <div className="text-lg font-bold font-mono mt-1">
+                {fmtAmount(availableFunds)}
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                {accounts.length}个账户 · 已扣除冻结资金
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="elevation-1">
+            <CardContent className="pt-4">
+              <div className="text-xs text-muted-foreground">待付款任务</div>
+              <div className="text-lg font-bold mt-1">{stats.pending} 笔</div>
+              <div className="text-[10px] text-muted-foreground">
+                {activeTab === 'pending' && stats.pending > 0
+                  ? `合计 ${fmtAmount(pendingAmount)}`
+                  : '—'}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="elevation-1">
+            <CardContent className="pt-4">
+              <div className="text-xs text-muted-foreground">待确认收款</div>
+              <div className="text-lg font-bold mt-1">
+                {transactionsQuery.data
+                  ? transactionsQuery.data.items.filter((tx) => tx.type === 'inflow').length
+                  : 0} 笔
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                {transactionsQuery.data
+                  ? `合计 ${fmtAmount(
+                      transactionsQuery.data.items
+                        .filter((tx) => tx.type === 'inflow')
+                        .reduce((s, tx) => s + Number(tx.amount), 0),
+                    )}`
+                  : '—'}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="elevation-1">
+            <CardContent className="pt-4">
+              <div className="text-xs text-muted-foreground">待移交回单</div>
+              <div className="text-lg font-bold mt-1">1 笔</div>
+              <div className="text-[10px] text-muted-foreground">付款后当日移交</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-      {/* ========== 5-Step Flow ========== */}
+      {/* ================================================================ */}
+      {/* 5-Step Flow (static)                                             */}
+      {/* ================================================================ */}
       <div className="flex items-center justify-center gap-2 flex-wrap py-2">
-        {['1 接收已审批任务', '2 付款前核验', '3 执行付款', '4 回单与移交', '5 资金凭证签字'].map(
-          (step, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className="text-xs px-2 py-1 rounded-full bg-accent text-accent-foreground">
-                {step}
-              </span>
-              {i < 4 && <ArrowRight className="h-3 w-3 text-muted-foreground" />}
-            </div>
-          ),
-        )}
+        {flowSteps.map((step, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <span className="text-xs px-2 py-1 rounded-full bg-accent text-accent-foreground">
+              {step}
+            </span>
+            {i < flowSteps.length - 1 && (
+              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+            )}
+          </div>
+        ))}
       </div>
 
-      {/* ========== Payment Tasks Table ========== */}
+      {/* ================================================================ */}
+      {/* Payment Tasks Table                                              */}
+      {/* ================================================================ */}
       <Card className="elevation-1">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">付款任务</CardTitle>
@@ -231,54 +375,205 @@ export function CashManagementView() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as PaymentStatusGroup)}>
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => setActiveTab(v as PaymentStatusGroup)}
+          >
             <TabsList>
-              {tabs.map((tab) => {
-                const count = paymentTasks.filter((t) => t.group === tab.key).length;
-                return (
-                  <TabsTrigger key={tab.key} value={tab.key} className="text-xs">
-                    {tab.label} {count}
-                  </TabsTrigger>
-                );
-              })}
+              {tabs.map((tab) => (
+                <TabsTrigger key={tab.key} value={tab.key} className="text-xs">
+                  {tab.label} {tabCounts[tab.key]}
+                </TabsTrigger>
+              ))}
             </TabsList>
           </Tabs>
-          <Table className="mt-3">
-            <TableHeader>
-              <TableRow className="text-[11px]">
-                <TableHead>付款凭证号</TableHead>
-                <TableHead>收款单位·客户</TableHead>
-                <TableHead>付款账户</TableHead>
-                <TableHead className="text-right">金额</TableHead>
-                <TableHead>审批与资料</TableHead>
-                <TableHead>资金检查</TableHead>
-                <TableHead>付款状态</TableHead>
-                <TableHead className="text-center">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paymentTasks
-                .filter((row) => row.group === activeTab)
-                .map((row, i) => (
+
+          {paymentsQuery.isLoading ? (
+            <div className="mt-3">
+              <TableSkeleton rows={5} />
+            </div>
+          ) : paymentsQuery.isError ? (
+            <div className="mt-3">
+              <Alert variant="destructive">
+                <AlertTitle>付款任务加载失败</AlertTitle>
+                <AlertDescription>{paymentsQuery.error.message}</AlertDescription>
+              </Alert>
+            </div>
+          ) : paymentTasks.length === 0 ? (
+            <div className="mt-3">
+              <Alert>
+                <AlertTitle>
+                  {activeTab === 'pending'
+                    ? '暂无待付款任务'
+                    : activeTab === 'processing'
+                      ? '暂无处理中任务'
+                      : '暂无已完成任务'}
+                </AlertTitle>
+                <AlertDescription>
+                  {activeTab === 'pending'
+                    ? '所有付款任务已处理完毕。'
+                    : activeTab === 'processing'
+                      ? '当前没有正在执行的付款任务。'
+                      : '尚未有已完成的付款记录。'}
+                </AlertDescription>
+              </Alert>
+            </div>
+          ) : (
+            <Table className="mt-3">
+              <TableHeader>
+                <TableRow className="text-[11px]">
+                  <TableHead>付款凭证号</TableHead>
+                  <TableHead>收款单位·客户</TableHead>
+                  <TableHead>付款账户</TableHead>
+                  <TableHead className="text-right">金额</TableHead>
+                  <TableHead>审批与资料</TableHead>
+                  <TableHead>资金检查</TableHead>
+                  <TableHead>付款状态</TableHead>
+                  <TableHead className="text-center">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paymentTasks.map((task) => {
+                  const statusInfo = getStatusInfo(
+                    task.paymentStatus ?? '',
+                    task.approvalStatus ?? '',
+                  );
+                  const acctInfo = accountMap.get(String(task.bankAccountId));
+                  const accountLabel = acctInfo
+                    ? `${acctInfo.bankName} ${acctInfo.name} ${acctInfo.accountNo}`
+                    : '—';
+
+                  return (
+                    <TableRow key={String(task.id)} className="text-xs">
+                      <TableCell className="font-mono">
+                        {formatPaymentId(task.id, task.createdAt)}
+                      </TableCell>
+                      <TableCell>{task.payee}</TableCell>
+                      <TableCell>{accountLabel}</TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmtAmount(task.amount)}
+                      </TableCell>
+                      <TableCell>{task.approvalStatus || '—'}</TableCell>
+                      <TableCell>{task.checkStatus || '—'}</TableCell>
+                      <TableCell>
+                        <Badge
+                          className={cn(
+                            statusInfo.kind === 'destructive' &&
+                              'bg-destructive/10 text-destructive',
+                            statusInfo.kind === 'success' &&
+                              'bg-success/10 text-success',
+                            statusInfo.kind === 'warning' &&
+                              'bg-warning/10 text-warning',
+                          )}
+                        >
+                          {statusInfo.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {task.paymentStatus === 'pending' ? (
+                          <RippleContainer>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1"
+                              disabled={
+                                executeMutation.isPending ||
+                                statusInfo.kind === 'destructive'
+                              }
+                              onClick={() => handleExecute(task.id)}
+                            >
+                              {executeMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Zap className="h-3 w-3" />
+                              )}
+                              执行付款
+                            </Button>
+                          </RippleContainer>
+                        ) : (
+                          <RippleContainer>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => navigate('hz-sourcevoucher')}
+                            >
+                              查看依据
+                            </Button>
+                          </RippleContainer>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ================================================================ */}
+      {/* Receipt Confirmation Table                                       */}
+      {/* ================================================================ */}
+      <Card className="elevation-1">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">收款确认与回单归集</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {transactionsQuery.isLoading ? (
+            <TableSkeleton rows={3} />
+          ) : transactionsQuery.isError ? (
+            <Alert variant="destructive">
+              <AlertTitle>银行流水加载失败</AlertTitle>
+              <AlertDescription>{transactionsQuery.error.message}</AlertDescription>
+            </Alert>
+          ) : !firstAccountId ? (
+            <Alert>
+              <AlertTitle>暂无银行账户</AlertTitle>
+              <AlertDescription>
+                请先添加银行账户以查看收款流水。
+              </AlertDescription>
+            </Alert>
+          ) : receiptRows.length === 0 ? (
+            <Alert>
+              <AlertTitle>暂无收款记录</AlertTitle>
+              <AlertDescription>
+                当前账户暂无流入流水记录。
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="text-[11px]">
+                  <TableHead>银行流水号</TableHead>
+                  <TableHead>付款方·业务来源</TableHead>
+                  <TableHead>收款客户</TableHead>
+                  <TableHead className="text-right">到账金额</TableHead>
+                  <TableHead>自动匹配</TableHead>
+                  <TableHead>处理状态</TableHead>
+                  <TableHead className="text-center">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {receiptRows.map((row, i) => (
                   <TableRow key={i} className="text-xs">
-                    <TableCell className="font-mono">{row.id}</TableCell>
-                    <TableCell>{row.to}</TableCell>
-                    <TableCell>{row.acct}</TableCell>
+                    <TableCell className="font-mono">{row.serial}</TableCell>
+                    <TableCell>{row.source}</TableCell>
+                    <TableCell>{row.account}</TableCell>
                     <TableCell className="text-right font-mono">{row.amount}</TableCell>
-                    <TableCell>{row.approval}</TableCell>
-                    <TableCell>{row.check}</TableCell>
                     <TableCell>
                       <Badge
                         className={
-                          row.statusKind === 'destructive'
-                            ? 'bg-destructive/10 text-destructive'
-                            : row.statusKind === 'success'
-                              ? 'bg-success/10 text-success'
-                              : 'bg-warning/10 text-warning'
+                          row.matchKind === 'success'
+                            ? 'bg-success/10 text-success'
+                            : 'bg-warning/10 text-warning'
                         }
                       >
-                        {row.status}
+                        {row.match}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{row.status}</Badge>
                     </TableCell>
                     <TableCell className="text-center">
                       <RippleContainer>
@@ -286,72 +581,23 @@ export function CashManagementView() {
                           variant="ghost"
                           size="sm"
                           className="h-7 text-xs"
-                          onClick={() => navigate('hz-sourcevoucher')}
+                          onClick={() => navigate('hz-bankrecon')}
                         >
-                          查看依据
+                          查看流水
                         </Button>
                       </RippleContainer>
                     </TableCell>
                   </TableRow>
                 ))}
-            </TableBody>
-          </Table>
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
-      {/* ========== Receipt Confirmation Table ========== */}
-      <Card className="elevation-1">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">收款确认与回单归集</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow className="text-[11px]">
-                <TableHead>银行流水号</TableHead>
-                <TableHead>付款方·业务来源</TableHead>
-                <TableHead>收款客户</TableHead>
-                <TableHead className="text-right">到账金额</TableHead>
-                <TableHead>自动匹配</TableHead>
-                <TableHead>处理状态</TableHead>
-                <TableHead className="text-center">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {receiptRows.map((row, i) => (
-                <TableRow key={i} className="text-xs">
-                  <TableCell className="font-mono">{row.serial}</TableCell>
-                  <TableCell>{row.source}</TableCell>
-                  <TableCell>{row.account}</TableCell>
-                  <TableCell className="text-right font-mono">{row.amount}</TableCell>
-                  <TableCell>
-                    <Badge className={row.matchKind === 'success' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}>
-                      {row.match}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{row.status}</Badge>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <RippleContainer>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => navigate('hz-bankrecon')}
-                      >
-                        查看流水
-                      </Button>
-                    </RippleContainer>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* ========== Rules Block ========== */}
+      {/* ================================================================ */}
+      {/* Rules Block (static)                                             */}
+      {/* ================================================================ */}
       <div className="flex items-start gap-2 rounded-lg bg-warning/10 border border-warning/20 p-3">
         <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
         <div className="text-xs text-warning space-y-1">

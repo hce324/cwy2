@@ -4,6 +4,8 @@ import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/layout/Providers";
+import { TRPCProvider } from "@/components/TRPCProvider";
+import { SessionProvider } from "next-auth/react";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -39,12 +41,16 @@ export default function RootLayout({
       className={`${inter.variable} ${roboto.variable} ${firaCode.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <TooltipProvider>
-          <Providers>
-            {children}
-            <Toaster richColors position="top-right" duration={3000} />
-          </Providers>
-        </TooltipProvider>
+        <TRPCProvider>
+          <SessionProvider>
+            <TooltipProvider>
+              <Providers>
+                {children}
+                <Toaster richColors position="top-right" duration={3000} />
+              </Providers>
+            </TooltipProvider>
+          </SessionProvider>
+        </TRPCProvider>
       </body>
     </html>
   );
