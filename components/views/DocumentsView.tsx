@@ -1,23 +1,17 @@
 'use client';
 
 /**
- * 智能采集 (DocumentsView) — 自包含工作台
+ * 智能采集 (DocumentsView) — 原始凭证电子化录入台
  * ───────────────────────────────────────────────────────────────
- * 后端缺口（占位/假数据，待后端补齐）：
- *   1. vouchers.batchCreate(ids[]) —— 批量写 AccountingVoucher+VoucherEntry（依赖 fiscalPeriodId），当前零路由。
- *      本页“批量制证”仅前端模拟：按类目套静态科目映射、本地置 linked、toast 标注“演示·待后端落库”。
- *   2. documents.recognize 当前是空壳：只翻 recognitionStatus→recognized，不抽字段、不写 rawDataJson。
- *      本页点“识别”仍调真实 recognize，并额外在前端按类目注入 mock 抽取字段到 rawDataJson（标注“模拟抽取”，刷新丢失）。
- *   3. CollectedDocument 无 fileUrl / 图片字段 —— 无原图可预览，查看原件仅展示结构化字段。
- *   4. documents.create 的 Zod 枚举未收录“采购订单”（DB 里却有该类目数据）→ 该类目可浏览(Tab)但经接口无法创建。
- * ───────────────────────────────────────────────────────────────
- * 数据-代码口径说明：DB 里 collected_documents 的真实 status 含 `success`（代码原只认 recognized/linked/archived/pending），
- * 本页已兼容 `success`→“已识别”。真实科目仅确认到 4 个（银行存款（货币资金）/应收账款/主营业务收入/管理费用），
- * 故批量制证映射只引用这 4 个真实科目，不编造进项税额/销项税额。
+ * 设计（2026-07-27 /grill-me 烤定）：
+ *  - 智能采集是原始凭证的「唯一」录入入口；录入即原始凭证电子版，直写 sourceVoucher。
+ *  - 原图经 OSS / 本地上传落 fileUrl；结构化字段存 rawDataJson；状态置「待制证」。
+ *  - 批量制证不在本页：由「记账凭证」页从原始凭证汇总生成（见 VoucherView）。
  */
 
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc-client';
+import { useAppStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,41 +30,29 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
+  DropdownMenuGroup,
 } from '@/components/ui/dropdown-menu';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Plus, Search, MoreVertical, Eye, ScanLine, FileText, Link2, CheckCheck, PencilLine } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  Plus,
-  ArrowRight,
-  Search,
-  MoreVertical,
-  Eye,
-  ScanLine,
-  AlertTriangle,
-  Link2,
-  FileText,
-  Pencil,
-} from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────
 
-interface Doc {
+interface SrcVoucher {
   id: bigint | number;
-  name: string;
-  category: string;
+  voucherNo: string;
+  itemDescription: string;
+  businessDate: string | Date;
   amount: number;
-  source: string | null;
-  subDescription: string | null;
-  documentDate: string | Date | null;
-  recognitionStatus: string | null;
-  isAbnormal: boolean;
-  isRead: boolean;
+  currency?: string | null;
+  category?: string | null;
+  source?: string | null;
+  fileUrl?: string | null;
   rawDataJson: any;
+  recognitionStatus?: string | null;
+  status?: string | null;
+  counterparty?: string | null;
+  voucherId?: bigint | number | null;
 }
-
-type VoucherEntry = { subject: string; dir: '借' | '贷'; amount: number };
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -83,347 +65,198 @@ function fmtDate(d: unknown): string {
   return String(d ?? '').slice(0, 10);
 }
 
-// 状态渲染：兼容 DB 真实值 `success` 与接口值 `recognized`
-function resultInfo(recognitionStatus: string | undefined, isAbnormal: boolean | undefined): { text: string; cls: string } {
-  if (isAbnormal) return { text: '异常待处理', cls: 'text-warning' };
-  switch (recognitionStatus) {
-    case 'linked':
-      return { text: '已关联至凭证', cls: 'text-success' };
-    case 'recognized':
-    case 'success': // DB 真实状态
-      return { text: 'AI识别完成', cls: 'text-success' };
-    case 'archived':
-      return { text: '已归档', cls: 'text-muted-foreground' };
-    case 'pending':
-    default:
-      return { text: '待识别', cls: 'text-muted-foreground' };
+function statusInfo(status?: string | null): { text: string; cls: string } {
+  if (status === '已制证') return { text: '已制证', cls: 'text-success' };
+  return { text: '待制证', cls: 'text-warning' };
+}
+
+// 根据 fileUrl 判断是否为 PDF：<img> 无法渲染 PDF，需改用 <iframe>
+function isPdfUrl(url?: string | null): boolean {
+  if (!url) return false;
+  return /\.pdf(\?|#|$)/i.test(url.split('?')[0]);
+}
+
+// 将 PDF 首页渲染为图片 dataUrl：上传时把 PDF 转图存储，规避 OSS 公开读无法内联预览 PDF 的问题
+async function pdfToImageDataUrl(file: File): Promise<string> {
+  const pdfjs = await import('pdfjs-dist');
+  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+  const data = await file.arrayBuffer();
+  const task = pdfjs.getDocument({ data });
+  const doc = await task.promise;
+  try {
+    const page = await doc.getPage(1);
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('无法创建 canvas 上下文');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+    return canvas.toDataURL('image/png');
+  } finally {
+    void task.destroy();
   }
 }
 
-function getCompany(rawDataJson: unknown, source: string | null | undefined): string {
-  if (
-    rawDataJson &&
-    typeof rawDataJson === 'object' &&
-    !Array.isArray(rawDataJson) &&
-    'companyName' in rawDataJson
-  ) {
-    return String((rawDataJson as Record<string, unknown>).companyName);
-  }
-  return source || '—';
-}
-
-function hasSourceVoucher(doc: Doc): boolean {
-  return !!(doc.rawDataJson && doc.rawDataJson.sourceVoucherId);
-}
-
-// 前端模拟抽取（后端 recognize 当前空壳，不抽字段）。刷新即丢失。
-function mockExtract(doc: Doc): Record<string, unknown> {
-  const amt = Number(doc.amount) || 0;
-  const base: Record<string, unknown> = {
-    单据编号: `FP${String(doc.id).padStart(6, '0')}`,
-    发生日期: fmtDate(doc.documentDate) || '2025-06-15',
-    对方单位: getCompany(doc.rawDataJson, doc.source),
-    金额: amt,
-    币种: 'CNY',
-  };
-  switch (doc.category) {
-    case '发票':
-      return { ...base, 类型: '增值税专用发票', 税率: '13%', 税额: Number((amt * 0.13 / 1.13).toFixed(2)) };
-    case '银行回单':
-      return { ...base, 类型: '收款回单', 交易类型: '货款回收', 对方账户: '工行深圳分行' };
-    case '采购订单':
-      return { ...base, 类型: '采购订单', 供应商: doc.source || '供应商' };
-    case '平台结算单':
-      return { ...base, 类型: '平台结算单', 平台: '京东', 平台扣费: Number((amt * 0.05).toFixed(2)) };
-    default:
-      return base;
+function recogInfo(status?: string | null): { text: string; cls: string } {
+  switch (status) {
+    case '待核对': return { text: '待核对', cls: 'text-warning' };
+    case '已确认': return { text: '已识别', cls: 'text-success' };
+    case '待识别': return { text: '待识别', cls: 'text-primary' };
+    case 'recognized': return { text: '已录入', cls: 'text-muted-foreground' };
+    default: return { text: '', cls: '' };
   }
 }
-
-// 批量制证：静态科目映射，仅引用 DB 真实存在的 4 个科目，借贷必相等
-function buildVoucher(doc: Doc): VoucherEntry[] {
-  const amt = Number(doc.amount) || 0;
-  switch (doc.category) {
-    case '银行回单':
-      return [
-        { subject: '银行存款（货币资金）', dir: '借', amount: amt },
-        { subject: '应收账款', dir: '贷', amount: amt },
-      ];
-    case '平台结算单':
-      return [
-        { subject: '应收账款', dir: '借', amount: amt },
-        { subject: '主营业务收入', dir: '贷', amount: amt },
-      ];
-    case '发票':
-    case '采购订单':
-    case '合同':
-    case '其他':
-    default:
-      return [
-        { subject: '管理费用', dir: '借', amount: amt },
-        { subject: '银行存款（货币资金）', dir: '贷', amount: amt },
-      ];
-  }
-}
-
-const flowSteps = ['资料上传', 'AI识别', '原始凭证', '批量制证'];
-
-const IMPORTABLE_CATEGORIES = ['发票', '合同', '银行回单', '其他']; // Zod 枚举允许的创建类目
 
 // ─── Component ────────────────────────────────────────────────────
 
 export function DocumentsView() {
-  const [onlyAbnormal, setOnlyAbnormal] = useState(false);
+  const setView = useAppStore((s) => s.setView);
   const [keyword, setKeyword] = useState('');
   const [appliedKeyword, setAppliedKeyword] = useState('');
 
-  // 选中态
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-  // 弹层开关
+  // 查看原件
   const [viewOpen, setViewOpen] = useState(false);
-  const [previewDoc, setPreviewDoc] = useState<Doc | null>(null);
-  const [abnormalOpen, setAbnormalOpen] = useState(false);
-  const [abnormalDoc, setAbnormalDoc] = useState<Doc | null>(null);
-  const [abForm, setAbForm] = useState({ name: '', amount: '', source: '', sub: '' });
+  const [previewDoc, setPreviewDoc] = useState<SrcVoucher | null>(null);
+
+  // 导入 Dialog
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState('');
+  const [importFileData, setImportFileData] = useState('');
+  const [importConverting, setImportConverting] = useState(false);
   const [importName, setImportName] = useState('');
-  const [importCategory, setImportCategory] = useState('发票');
-  const [importAmount, setImportAmount] = useState('');
-  const [importSource, setImportSource] = useState('');
-  const [importSub, setImportSub] = useState('');
-  const [voucherOpen, setVoucherOpen] = useState(false);
-  const [voucherDocs, setVoucherDocs] = useState<Doc[]>([]);
-
-  // 前端 mock 覆盖层（会话内有效，刷新即还原）
-  const [overrideMap, setOverrideMap] = useState<Record<string, Partial<Doc>>>({});
 
   // ─── Query & mutations ───────────────────────────────────────
-  const listQuery = trpc.documents.list.useQuery(
-    {
-      keyword: appliedKeyword || undefined,
-      limit: 100,
-      offset: 0,
-    },
+  const listQuery = trpc.sourceVoucher.list.useQuery(
+    { keyword: appliedKeyword || undefined, limit: 100, offset: 0 },
     { staleTime: 30_000 },
   );
   const utils = trpc.useUtils();
-  const invalidate = () => utils.documents.list.invalidate();
+  const invalidate = () => utils.sourceVoucher.list.invalidate();
 
-  const recognizeMutation = trpc.documents.recognize.useMutation({
-    onSuccess: invalidate,
-    onError: (e) => toast(`识别失败：${e.message}`),
-  });
-  const updateMutation = trpc.documents.update.useMutation({
-    onSuccess: invalidate,
-    onError: (e) => toast(`保存失败：${e.message}`),
-  });
-  const associateMutation = trpc.documents.associate.useMutation({
-    onSuccess: invalidate,
-    onError: (e) => toast(`关联失败：${e.message}`),
-  });
-  const createMutation = trpc.documents.create.useMutation({
-    onSuccess: (created) => {
-      const newDoc = created as unknown as Doc;
-      recognizeMutation.mutate({ id: Number(newDoc.id) });
-      setOverrideMap((prev) => ({
-        ...prev,
-        [String(newDoc.id)]: { rawDataJson: mockExtract(newDoc) },
-      }));
-      toast('已导入并送识别（演示抽取字段）');
+  const createMutation = trpc.sourceVoucher.create.useMutation({
+    onSuccess: () => {
+      toast.success('已录入原始凭证');
       setImportOpen(false);
       resetImportForm();
+      invalidate();
     },
-    onError: (e) => toast(`导入失败：${e.message}`),
+    onError: (e) => toast.error(`录入失败：${e.message}`),
   });
 
-  const allItems = (listQuery.data?.items ?? []) as unknown as Doc[];
-  const apiTotal = listQuery.data?.total ?? 0;
+  // AI 识别 + 核对确认
+  const recognizeMutation = trpc.sourceVoucher.recognize.useMutation({
+    onSuccess: (data) => {
+      toast.success('AI 识别完成，请核对字段');
+      openReviewFromRecognized(data as any);
+      invalidate();
+    },
+    onError: (e) => toast.error(`识别失败：${e.message}`),
+  });
+
+  const updateMutation = trpc.sourceVoucher.update.useMutation({
+    onSuccess: () => {
+      toast.success('已确认识别结果');
+      setReviewOpen(false);
+      invalidate();
+    },
+    onError: (e) => toast.error(`保存失败：${e.message}`),
+  });
+
+  // 识别结果核对弹窗状态
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [review, setReview] = useState<null | {
+    id: bigint | number | string;
+    voucherNo: string;
+    itemDescription: string;
+    businessDate: string;
+    amount: string;
+    counterparty: string;
+    category: string;
+    recognitionStatus: string;
+    rawDataJson: any;
+    fileUrl?: string | null;
+  }>(null);
+
+  const openReviewFromRecognized = (data: any) => {
+    const r = data.recognized;
+    setReview({
+      id: data.voucher.id,
+      voucherNo: r.invoiceNo ?? '',
+      itemDescription: r.itemName ?? '',
+      businessDate: r.invoiceDate ?? new Date().toISOString().slice(0, 10),
+      amount: r.amount != null ? String(r.amount) : '',
+      counterparty: r.sellerName ?? '',
+      category: (data.voucher?.category as string) ?? '',
+      recognitionStatus: '待核对',
+      rawDataJson: r.raw ?? {},
+      fileUrl: data.voucher.fileUrl,
+    });
+    setReviewOpen(true);
+  };
+
+  const openReviewFromDoc = (doc: SrcVoucher) => {
+    setReview({
+      id: doc.id,
+      voucherNo: doc.voucherNo ?? '',
+      itemDescription: doc.itemDescription ?? '',
+      businessDate: fmtDate(doc.businessDate),
+      amount: String(doc.amount ?? ''),
+      counterparty: doc.counterparty ?? '',
+      category: doc.category ?? '',
+      recognitionStatus: doc.recognitionStatus ?? '待核对',
+      rawDataJson: doc.rawDataJson ?? {},
+      fileUrl: doc.fileUrl,
+    });
+    setReviewOpen(true);
+  };
+
+  const handleConfirmReview = () => {
+    if (!review) return;
+    if (!review.amount || Number(review.amount) <= 0) { toast.error('请输入有效金额'); return; }
+    updateMutation.mutate({
+      id: Number(review.id),
+      voucherNo: review.voucherNo,
+      itemDescription: review.itemDescription,
+      businessDate: review.businessDate,
+      amount: Number(review.amount),
+      counterparty: review.counterparty,
+      category: review.category || undefined,
+      recognitionStatus: '已确认',
+      rawDataJson: review.rawDataJson,
+    });
+  };
+
+  const items = (listQuery.data?.items ?? []) as unknown as SrcVoucher[];
+  const total = listQuery.data?.total ?? 0;
   const isLoading = listQuery.isLoading;
   const isError = listQuery.isError;
   const errorMsg = listQuery.error?.message;
 
-  // 合并 mock 覆盖
-  const items = allItems.map((d) => ({ ...d, ...(overrideMap[String(d.id)] ?? {}) }));
-
-  // ─── Client-side filtering ───────────────────────────────────
-  const filteredItems = onlyAbnormal ? items.filter((doc) => doc.isAbnormal) : items;
-  const abnormalCount = items.filter((doc) => doc.isAbnormal).length;
-
-  // ─── Selection helpers ──────────────────────────────────────
-  const allSelected = filteredItems.length > 0 && filteredItems.every((d) => selectedIds.has(String(d.id)));
-  const someSelected = filteredItems.some((d) => selectedIds.has(String(d.id)));
-  const headerIndeterminate = someSelected && !allSelected;
-
-  const toggleOne = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-  const toggleAll = () => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (allSelected) filteredItems.forEach((d) => next.delete(String(d.id)));
-      else filteredItems.forEach((d) => next.add(String(d.id)));
-      return next;
-    });
-  };
-
-  const selectedDocs = filteredItems.filter((d) => selectedIds.has(String(d.id)));
-  const allHaveSvid = selectedDocs.every((d) => hasSourceVoucher(d));
-
   // ─── Search handlers ────────────────────────────────────────
   const handleSearch = () => setAppliedKeyword(keyword);
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleSearch();
-  };
+  const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter') handleSearch(); };
 
-  // ─── Actions ────────────────────────────────────────────────
-  const injectMock = (doc: Doc) =>
-    setOverrideMap((prev) => ({
-      ...prev,
-      [String(doc.id)]: { ...(prev[String(doc.id)] ?? {}), rawDataJson: mockExtract(doc) },
-    }));
-
-  const handleRecognize = (doc: Doc) => {
-    if ((doc.recognitionStatus ?? 'pending') === 'recognized' || (doc.recognitionStatus ?? 'pending') === 'success') {
-      toast('该单据已识别');
-      return;
-    }
-    recognizeMutation.mutate({ id: Number(doc.id) });
-    injectMock(doc);
-  };
-
-  const handleMarkAbnormal = (doc: Doc) => {
-    updateMutation.mutate({ id: Number(doc.id), isAbnormal: true });
-    toast('已标记为异常，待人工复核');
-  };
-
-  const handleView = (doc: Doc) => {
-    setPreviewDoc(doc);
-    setViewOpen(true);
-  };
-
-  const handleOpenAbnormal = (doc: Doc) => {
-    setAbnormalDoc(doc);
-    setAbForm({
-      name: doc.name,
-      amount: String(Number(doc.amount)),
-      source: doc.source ?? '',
-      sub: doc.subDescription ?? '',
-    });
-    setAbnormalOpen(true);
-  };
-
-  const handleAbnormalSave = () => {
-    if (!abnormalDoc) return;
-    updateMutation.mutate({
-      id: Number(abnormalDoc.id),
-      name: abForm.name,
-      amount: Number(abForm.amount),
-      source: abForm.source || undefined,
-      subDescription: abForm.sub || undefined,
-    });
-    setOverrideMap((prev) => ({
-      ...prev,
-      [String(abnormalDoc.id)]: {
-        ...(prev[String(abnormalDoc.id)] ?? {}),
-        rawDataJson: mockExtract({ ...abnormalDoc, name: abForm.name, amount: Number(abForm.amount), source: abForm.source, subDescription: abForm.sub }),
-      },
-    }));
-    setAbnormalOpen(false);
-    toast('异常单据信息已更新（已写回后端）');
-  };
-
-  const handleAbnormalRescan = () => {
-    if (!abnormalDoc) return;
-    const status = abnormalDoc.recognitionStatus ?? 'pending';
-    if (status === 'pending') recognizeMutation.mutate({ id: Number(abnormalDoc.id) });
-    updateMutation.mutate({ id: Number(abnormalDoc.id), isAbnormal: false, recognitionStatus: 'recognized' });
-    injectMock(abnormalDoc);
-    setAbnormalOpen(false);
-    toast('已重识别并清除异常标记（演示抽取字段）');
-  };
-
-  const handleBatchRecognize = () => {
-    const pend = selectedDocs.filter((d) => (d.recognitionStatus ?? 'pending') === 'pending');
-    pend.forEach((d) => recognizeMutation.mutate({ id: Number(d.id) }));
-    selectedDocs.forEach((d) => injectMock(d));
-    toast(`已对 ${pend.length} 张单据执行识别（演示抽取字段）`);
-    setSelectedIds(new Set());
-  };
-
-  const handleOpenVoucher = () => {
-    const eligible = selectedDocs.filter(
-      (d) =>
-        ['recognized', 'success'].includes(d.recognitionStatus ?? '') &&
-        !d.isAbnormal &&
-        d.recognitionStatus !== 'linked',
-    );
-    if (eligible.length === 0) {
-      toast('请先选择已识别且未关联的单据');
-      return;
-    }
-    setVoucherDocs(eligible);
-    setVoucherOpen(true);
-  };
-
-  const handleConfirmVoucher = () => {
-    setOverrideMap((prev) => {
-      const next = { ...prev };
-      voucherDocs.forEach((d) => {
-        next[String(d.id)] = { ...(next[String(d.id)] ?? {}), recognitionStatus: 'linked' };
-      });
-      return next;
-    });
-    toast(`已生成 ${voucherDocs.length} 张记账凭证（演示·待后端落库）`);
-    setVoucherOpen(false);
-    setVoucherDocs([]);
-    setSelectedIds(new Set());
-  };
-
-  const handleBatchAssociate = () => {
-    if (!allHaveSvid) return;
-    selectedDocs.forEach((d) =>
-      associateMutation.mutate({ id: Number(d.id), sourceVoucherId: Number(d.rawDataJson.sourceVoucherId) }),
-    );
-    toast(`已关联 ${selectedDocs.length} 张单据至原始凭证`);
-    setSelectedIds(new Set());
-  };
+  const handleView = (doc: SrcVoucher) => { setPreviewDoc(doc); setViewOpen(true); };
 
   const resetImportForm = () => {
     setImportFile('');
+    setImportFileData('');
     setImportName('');
-    setImportCategory('发票');
-    setImportAmount('');
-    setImportSource('');
-    setImportSub('');
   };
 
   const handleImport = () => {
-    if (!importName.trim()) {
-      toast('请选择文件或填写单据名称');
-      return;
-    }
-    if (!IMPORTABLE_CATEGORIES.includes(importCategory)) {
-      toast('请选择可创建的类别');
-      return;
-    }
-    if (!importAmount || Number(importAmount) <= 0) {
-      toast('请输入有效金额');
-      return;
-    }
+    if (!importName.trim()) { toast.error('请填写单据名称'); return; }
     createMutation.mutate({
-      name: importName.trim(),
-      category: importCategory as any,
-      amount: Number(importAmount),
-      source: importSource || undefined,
-      subDescription: importSub || undefined,
-      documentDate: new Date().toISOString().slice(0, 10),
+      itemDescription: importName.trim(),
+      source: 'smart',
+      fileData: importFileData || undefined,
+      recognitionStatus: '待识别',
+      status: '待制证',
+      rawDataJson: {
+        单据编号: importName.trim(),
+        来源: '智能采集·待AI识别',
+      },
     });
   };
 
@@ -440,157 +273,95 @@ export function DocumentsView() {
             </span>
           </h1>
           <p className="page-subtitle">
-            扫描原始单据，导入发票、平台账单、银行流水和业务附件。
+            上传原始单据（发票、银行回单、审批单），录入关键信息后成为电子版原始凭证，进入原始凭证库待制证。
           </p>
         </div>
-        <Button size="sm" className="gap-1.5 ripple-container elevation-1" onClick={() => setImportOpen(true)}>
+        <Button size="sm" className="gap-1.5 ripple-container elevation-1" onClick={() => { resetImportForm(); setImportOpen(true); }}>
           <Plus className="h-4 w-4" /> 扫描或导入
         </Button>
       </div>
 
       <Separator />
 
-      {/* ── Flow Steps（静态说明 / 新人引导） ─────────────── */}
-      <div className="flex items-center justify-center gap-2 flex-wrap py-2">
-        {flowSteps.map((step, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-primary/10 text-primary font-medium">
-              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground font-bold">
-                {i + 1}
-              </span>
-              {step}
-            </span>
-            {i < flowSteps.length - 1 && (
-              <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* ── Search + 仅看异常 ─────────────────────────────────── */}
+      {/* ── Search ───────────────────────────────────────────── */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="搜索名称、备注或来源（供应商、平台名）"
+            placeholder="搜索凭证号、事项或对方单位"
             className="h-8 pl-7 text-xs"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             onKeyDown={handleKeyDown}
           />
         </div>
-        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none rounded-lg border border-border px-3 h-8 hover:bg-muted/50">
-          <Checkbox checked={onlyAbnormal} onCheckedChange={(v) => setOnlyAbnormal(Boolean(v))} />
-          仅看异常{abnormalCount > 0 ? `（${abnormalCount}）` : ''}
-        </label>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        共 {apiTotal.toLocaleString()} 份采集资料，统一平铺展示；可搜索名称、备注或来源快速定位，勾选行后可批量识别、制证或关联凭证。
-        {onlyAbnormal && ' 当前仅显示异常待处理单据。'}
+        共 {total.toLocaleString()} 份已录入的原始凭证（电子版）。录入后可在「原始凭证」页查看与校验，并在「记账凭证」页汇总生成凭证。
       </p>
-
-      {/* ── 常驻演示模式提示（决策 9 常驻化：说清真/假） ───── */}
-      <Alert className="text-xs bg-primary/5 border-primary/20 text-foreground">
-        <span>
-          演示模式：本页 <strong className="font-medium">AI 识别的抽取字段</strong> 与{' '}
-          <strong className="font-medium">批量制证</strong>{' '}
-          为前端模拟，数据刷新即还原、待后端 vouchers.batchCreate 落库；
-          <strong className="font-medium">异常复核为真实接口</strong>。
-        </span>
-      </Alert>
-
-      {/* ── Batch action bar ─────────────────────────────────── */}
-      {selectedDocs.length > 0 && (
-        <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 elevation-1">
-          <span className="text-xs font-medium text-primary">已选 {selectedDocs.length} 项</span>
-          <Separator orientation="vertical" className="h-5" />
-          <Button size="sm" variant="outline" className="h-7 text-xs ripple-container" onClick={handleBatchRecognize}>
-            <ScanLine className="h-3.5 w-3.5" /> 批量识别
-          </Button>
-          <Button size="sm" variant="outline" className="h-7 text-xs ripple-container" onClick={handleOpenVoucher}>
-            <FileText className="h-3.5 w-3.5" /> 批量制证
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs ripple-container"
-            disabled={!allHaveSvid}
-            title={allHaveSvid ? undefined : '需后端提供可关联的原始凭证（sourceVoucherId）'}
-            onClick={handleBatchAssociate}
-          >
-            <Link2 className="h-3.5 w-3.5" /> 关联凭证
-          </Button>
-          <Button size="sm" variant="ghost" className="h-7 text-xs ml-auto" onClick={() => setSelectedIds(new Set())}>
-            取消选择
-          </Button>
-        </div>
-      )}
 
       {/* ── Table ────────────────────────────────────────────── */}
       <Card className="elevation-1">
         <CardContent className="pt-4 overflow-x-auto">
           {isLoading ? (
             <div className="space-y-2">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
+              {Array.from({ length: 8 }).map((_, i) => (<Skeleton key={i} className="h-10 w-full" />))}
             </div>
           ) : isError ? (
             <Alert variant="destructive">
               <AlertTitle>数据加载失败</AlertTitle>
-              <AlertDescription>
-                {errorMsg || '无法获取采集资料列表，请检查网络连接后重试'}
-              </AlertDescription>
+              <AlertDescription>{errorMsg || '无法获取原始凭证列表，请检查网络连接后重试'}</AlertDescription>
             </Alert>
-          ) : filteredItems.length === 0 ? (
+          ) : items.length === 0 ? (
             <div className="py-16 text-center text-sm text-muted-foreground">
-              {onlyAbnormal
-                ? '暂无异常资料'
-                : '暂无采集资料，点击「扫描或导入」添加第一份单据'}
+              暂无录入资料，点击「扫描或导入」添加第一份原始凭证
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow className="text-[11px]">
-                  <TableHead className="w-10">
-                    <Checkbox checked={allSelected} indeterminate={headerIndeterminate} onCheckedChange={() => toggleAll()} aria-label="全选" />
-                  </TableHead>
-                  <TableHead>资料名称</TableHead>
-                  <TableHead>资料类别</TableHead>
-                  <TableHead>所属公司</TableHead>
-                  <TableHead>采集来源</TableHead>
+                  <TableHead>原始凭证号</TableHead>
+                  <TableHead>事项</TableHead>
+                  <TableHead>对方单位</TableHead>
                   <TableHead className="text-right">金额</TableHead>
-                  <TableHead>识别·匹配结果</TableHead>
+                  <TableHead>状态</TableHead>
                   <TableHead className="text-center">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredItems.map((doc) => {
-                  const result = resultInfo(doc.recognitionStatus ?? undefined, doc.isAbnormal ?? undefined);
-                  const company = getCompany(doc.rawDataJson, doc.source);
-                  const checked = selectedIds.has(String(doc.id));
+                {items.map((doc) => {
+                  const st = statusInfo(doc.status);
                   return (
-                    <TableRow key={String(doc.id)} className="text-xs" data-selected={checked}>
+                    <TableRow key={String(doc.id)} className="text-xs">
+                      <TableCell className="font-mono">{doc.voucherNo}</TableCell>
                       <TableCell>
-                        <Checkbox checked={checked} onCheckedChange={() => toggleOne(String(doc.id))} aria-label="选择" />
+                        <div className="font-medium text-foreground">{doc.itemDescription}</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">{fmtDate(doc.businessDate)}</div>
                       </TableCell>
-                      <TableCell>
-                        <div className="font-medium text-foreground">{doc.name}</div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5">
-                          {doc.subDescription || (doc.documentDate ? fmtDate(doc.documentDate) : null) || ''}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-[10px]">
-                          {doc.category}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{company}</TableCell>
-                      <TableCell>{doc.source || '—'}</TableCell>
+                      <TableCell>{doc.counterparty || '—'}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums">{fmtAmount(doc.amount)}</TableCell>
                       <TableCell>
-                        <span className={result.cls}>{result.text}</span>
+                        <div className="flex flex-col gap-1">
+                          {doc.recognitionStatus ? (
+                            <span className={cn('text-[10px] font-medium', recogInfo(doc.recognitionStatus).cls)}>
+                              {recogInfo(doc.recognitionStatus).text}
+                            </span>
+                          ) : null}
+                          {doc.status === '已制证' && doc.voucherId ? (
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1 text-success hover:underline cursor-pointer"
+                              onClick={() => setView('hz-voucher')}
+                            >
+                              <Link2 className="h-3.5 w-3.5" /> 已制证
+                            </button>
+                          ) : (
+                            <span className={cn('inline-flex items-center gap-1', st.cls)}>
+                              <span className="h-1.5 w-1.5 rounded-full bg-current" /> {st.text}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-center">
                         <DropdownMenu>
@@ -603,19 +374,23 @@ export function DocumentsView() {
                             }
                           />
                           <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>操作</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => handleView(doc)}>
-                              <Eye className="h-4 w-4" /> 查看原件
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleRecognize(doc)}
-                              disabled={(doc.recognitionStatus ?? 'pending') === 'recognized' || (doc.recognitionStatus ?? 'pending') === 'success'}
-                            >
-                              <ScanLine className="h-4 w-4" /> AI识别
-                            </DropdownMenuItem>
-                            <DropdownMenuItem variant="destructive" onClick={() => handleMarkAbnormal(doc)}>
-                              <AlertTriangle className="h-4 w-4" /> 标记异常
-                            </DropdownMenuItem>
+                            <DropdownMenuGroup>
+                              <DropdownMenuLabel>操作</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => handleView(doc)}>
+                                <Eye className="h-4 w-4" /> 查看原件
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => recognizeMutation.mutate({ id: Number(doc.id) })}>
+                                <ScanLine className="h-4 w-4" /> AI 识别
+                              </DropdownMenuItem>
+                              {doc.recognitionStatus ? (
+                                <DropdownMenuItem onClick={() => openReviewFromDoc(doc)}>
+                                  <PencilLine className="h-4 w-4" /> 核对识别结果
+                                </DropdownMenuItem>
+                              ) : null}
+                              <DropdownMenuItem onClick={() => setView('hz-sourcevoucher')}>
+                                <FileText className="h-4 w-4" /> 去原始凭证库
+                              </DropdownMenuItem>
+                            </DropdownMenuGroup>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -637,101 +412,76 @@ export function DocumentsView() {
                 <SheetTitle className="flex items-center gap-2">
                   <Eye className="h-4 w-4 text-primary" /> 查看原件
                 </SheetTitle>
-                <SheetDescription>{previewDoc.name}</SheetDescription>
+                <SheetDescription>{previewDoc.itemDescription}</SheetDescription>
               </SheetHeader>
 
               <div className="space-y-4 px-4">
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <Field label="类别" value={previewDoc.category} />
-                  <Field label="金额" value={fmtAmount(previewDoc.amount)} />
-                  <Field label="来源" value={previewDoc.source || '—'} />
-                  <Field label="日期" value={fmtDate(previewDoc.documentDate)} />
-                </div>
-
-                {previewDoc.subDescription && (
-                  <div className="text-xs">
-                    <div className="text-muted-foreground mb-1">备注</div>
-                    <div className="text-foreground">{previewDoc.subDescription}</div>
+                {previewDoc.fileUrl ? (
+                  isPdfUrl(previewDoc.fileUrl) ? (
+                    <iframe
+                      src={previewDoc.fileUrl}
+                      title="单据原件"
+                      className="h-[70vh] w-full rounded-lg border border-border bg-white"
+                    />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={previewDoc.fileUrl}
+                      alt="单据原件"
+                      className="w-full rounded-lg border border-border object-contain bg-muted/30"
+                    />
+                  )
+                ) : (
+                  <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
+                    暂无原图（导入时未上传文件）
                   </div>
                 )}
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <Field label="金额" value={fmtAmount(previewDoc.amount)} />
+                  <Field label="日期" value={fmtDate(previewDoc.businessDate)} />
+                  <Field label="对方单位" value={previewDoc.counterparty || '—'} />
+                  <Field label="状态" value={statusInfo(previewDoc.status).text} />
+                </div>
 
                 <Separator />
 
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium">AI 抽取字段</span>
+                    <span className="text-xs font-medium">录入字段</span>
                     {!(previewDoc.rawDataJson && Object.keys(previewDoc.rawDataJson).length) && (
-                      <Badge variant="outline" className="text-[10px] text-warning">
-                        模拟抽取
-                      </Badge>
+                      <Badge variant="outline" className="text-[10px] text-muted-foreground">未录入</Badge>
                     )}
                   </div>
-                  {/* 空则前端即时生成 mock（决策 A1），标注模拟 */}
-                  <ExtractedFields
-                    data={
-                      previewDoc.rawDataJson && Object.keys(previewDoc.rawDataJson).length
-                        ? previewDoc.rawDataJson
-                        : mockExtract(previewDoc)
-                    }
-                  />
-                  <p className="text-[11px] text-muted-foreground mt-2">
-                    注：后端 recognize 当前为占位，以上字段为前端模拟抽取，刷新页面将还原。
-                  </p>
-                </div>
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
-
-      {/* ── 异常复核 Sheet ───────────────────────────────────── */}
-      <Sheet open={abnormalOpen} onOpenChange={setAbnormalOpen}>
-        <SheetContent side="right" className="overflow-y-auto">
-          {abnormalDoc && (
-            <>
-              <SheetHeader>
-                <SheetTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-warning" /> 异常复核
-                </SheetTitle>
-                <SheetDescription>{abnormalDoc.name}</SheetDescription>
-              </SheetHeader>
-
-              <div className="space-y-4 px-4 pb-4">
-                <div className="space-y-1.5">
-                  <Label text="单据名称" />
-                  <Input className="h-8 text-xs" value={abForm.name} onChange={(e) => setAbForm((f) => ({ ...f, name: e.target.value }))} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label text="金额" />
-                  <Input
-                    type="number"
-                    className="h-8 text-xs"
-                    value={abForm.amount}
-                    onChange={(e) => setAbForm((f) => ({ ...f, amount: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label text="来源 / 对方" />
-                  <Input className="h-8 text-xs" value={abForm.source} onChange={(e) => setAbForm((f) => ({ ...f, source: e.target.value }))} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label text="备注" />
-                  <Textarea className="text-xs" rows={3} value={abForm.sub} onChange={(e) => setAbForm((f) => ({ ...f, sub: e.target.value }))} />
+                  {previewDoc.rawDataJson && Object.keys(previewDoc.rawDataJson).length ? (
+                    <ExtractedFields data={previewDoc.rawDataJson} />
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">尚未录入结构化字段。</p>
+                  )}
                 </div>
 
-                <Separator />
-
-                <div className="flex gap-2">
-                  <Button size="sm" className="flex-1 ripple-container" onClick={handleAbnormalSave}>
-                    <Pencil className="h-3.5 w-3.5" /> 保存信息
+                <div className="space-y-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full ripple-container"
+                    onClick={() => recognizeMutation.mutate({ id: Number(previewDoc.id) })}
+                    disabled={recognizeMutation.isPending}
+                  >
+                    <ScanLine className="h-4 w-4" /> {recognizeMutation.isPending ? '识别中…' : 'AI 识别'}
                   </Button>
-                  <Button size="sm" variant="outline" className="flex-1 ripple-container" onClick={handleAbnormalRescan}>
-                    <ScanLine className="h-3.5 w-3.5" /> 重识别并清除异常
-                  </Button>
+                  {previewDoc.recognitionStatus ? (
+                    <Button size="sm" variant="outline" className="w-full ripple-container" onClick={() => openReviewFromDoc(previewDoc)}>
+                      <PencilLine className="h-4 w-4" /> 核对识别结果
+                    </Button>
+                  ) : null}
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  保存/重识别均调用真实后端接口（update / recognize），异常闭环不依赖 mock。
-                </p>
+
+                {previewDoc.status === '已制证' && previewDoc.voucherId && (
+                  <Button size="sm" variant="outline" className="w-full ripple-container" onClick={() => { setView('hz-voucher'); setViewOpen(false); }}>
+                    <Link2 className="h-4 w-4" /> 查看关联记账凭证
+                  </Button>
+                )}
               </div>
             </>
           )}
@@ -743,24 +493,41 @@ export function DocumentsView() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Plus className="h-4 w-4 text-primary" /> 扫描或导入单据
+              <Plus className="h-4 w-4 text-primary" /> 扫描或导入原始凭证
             </DialogTitle>
-            <DialogDescription>选择文件并填写基本信息，提交后自动送识别（演示抽取）。</DialogDescription>
+            <DialogDescription>选择原图并填写关键信息，提交后原图上传至存储（OSS / 本地），单据成为电子版原始凭证，进入待制证状态。</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label text="文件" />
+              <Label text="原图（可选）" />
               <div className="flex items-center gap-2">
                 <input
                   type="file"
                   className="hidden"
                   id="import-file"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const f = e.target.files?.[0];
-                    if (f) {
-                      setImportFile(f.name);
-                      if (!importName) setImportName(f.name);
+                    if (!f) return;
+                    setImportFile(f.name);
+                    if (!importName) setImportName(f.name);
+                    try {
+                      if (f.type === 'application/pdf') {
+                        setImportConverting(true);
+                        const img = await pdfToImageDataUrl(f);
+                        setImportFileData(img);
+                      } else {
+                        const reader = new FileReader();
+                        reader.onload = () => setImportFileData(String(reader.result));
+                        reader.readAsDataURL(f);
+                      }
+                    } catch (err) {
+                      console.error('PDF 转图失败', err);
+                      toast.error('PDF 转图失败，请重试或改用图片上传');
+                      setImportFile('');
+                      setImportFileData('');
+                    } finally {
+                      setImportConverting(false);
                     }
                   }}
                 />
@@ -768,9 +535,10 @@ export function DocumentsView() {
                   htmlFor="import-file"
                   className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-input bg-transparent px-3 text-xs hover:bg-muted/50"
                 >
-                  <FileText className="h-3.5 w-3.5" /> 选择文件
+                  <ScanLine className="h-3.5 w-3.5" /> 选择文件
                 </label>
                 <span className="text-xs text-muted-foreground truncate">{importFile || '未选择'}</span>
+                {importConverting && <span className="text-xs text-primary">PDF 转图中…</span>}
               </div>
             </div>
 
@@ -779,138 +547,99 @@ export function DocumentsView() {
               <Input className="h-8 text-xs" placeholder="自动取文件名，可修改" value={importName} onChange={(e) => setImportName(e.target.value)} />
             </div>
 
-            <div className="space-y-1.5">
-              <Label text="类别" />
-              <Select value={importCategory} onValueChange={(v) => setImportCategory(v ?? importCategory)}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="选择类别" />
-                </SelectTrigger>
-                <SelectContent>
-                  {IMPORTABLE_CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                  {/* 禁用明示：后端未支持 / 枚举未收录，经接口无法创建 */}
-                  <SelectItem value="平台结算单" disabled>
-                    平台结算单（后端未支持类目）
-                  </SelectItem>
-                  <SelectItem value="采购订单" disabled>
-                    采购订单（Zod 枚举未收录）
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label text="金额" />
-              <Input type="number" className="h-8 text-xs" placeholder="0.00" value={importAmount} onChange={(e) => setImportAmount(e.target.value)} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label text="来源（可选）" />
-                <Input className="h-8 text-xs" value={importSource} onChange={(e) => setImportSource(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label text="备注（可选）" />
-                <Input className="h-8 text-xs" value={importSub} onChange={(e) => setImportSub(e.target.value)} />
-              </div>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              图片直接上传；PDF 会自动转成首页图片存储，便于查看与识别。金额、日期、对方单位等由 AI 识别自动补全；如暂不识别，可稍后在列表中点「AI 识别」。
+            </p>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setImportOpen(false)}>
-              取消
-            </Button>
-            <Button className="ripple-container" onClick={handleImport} disabled={createMutation.isPending}>
-              {createMutation.isPending ? '导入中…' : '导入并识别'}
+            <Button variant="outline" onClick={() => setImportOpen(false)}>取消</Button>
+            <Button className="ripple-container" onClick={handleImport} disabled={createMutation.isPending || importConverting}>
+              {createMutation.isPending ? '录入中…' : importConverting ? '转换中…' : '录入为原始凭证'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ── 批量制证 Dialog ─────────────────────────────────── */}
-      <Dialog open={voucherOpen} onOpenChange={setVoucherOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+      {/* ── 识别结果核对 Dialog（C1：人逐字段核对后确认）──────────── */}
+      <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-primary" /> 批量制证预览
+              <ScanLine className="h-4 w-4 text-primary" /> 核对 AI 识别结果
             </DialogTitle>
             <DialogDescription>
-              以下为前端演示映射（仅引用系统中真实存在的科目，非真实会计准则），确认后本地置为「已关联」，待后端 vouchers.batchCreate 落库。
+              请逐字段核对原图，确认无误后点「确认」；识别状态将标记为已识别并进入待制证。
             </DialogDescription>
-        </DialogHeader>
+          </DialogHeader>
 
-        {selectedDocs.length - voucherDocs.length > 0 && (
-          <p className="text-[11px] text-muted-foreground">
-            已自动跳过 {selectedDocs.length - voucherDocs.length} 张（已关联{' '}
-            {selectedDocs.filter((d) => d.recognitionStatus === 'linked').length} · 异常{' '}
-            {selectedDocs.filter((d) => d.isAbnormal && d.recognitionStatus !== 'linked').length} · 未识别{' '}
-            {
-              selectedDocs.filter(
-                (d) =>
-                  !['recognized', 'success'].includes(d.recognitionStatus ?? '') &&
-                  !d.isAbnormal &&
-                  d.recognitionStatus !== 'linked',
-              ).length
-            }
-            ）
-          </p>
-        )}
-
-        <div className="space-y-3">
-            {voucherDocs.map((doc) => {
-              const entries = buildVoucher(doc);
-              const debit = entries.filter((e) => e.dir === '借').reduce((s, e) => s + e.amount, 0);
-              const credit = entries.filter((e) => e.dir === '贷').reduce((s, e) => s + e.amount, 0);
-              const balanced = Math.abs(debit - credit) < 0.01;
-              return (
-                <div key={String(doc.id)} className="rounded-lg border border-border p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium">{doc.name}</span>
-                    <Badge variant="outline" className="text-[10px]">
-                      {doc.category}
-                    </Badge>
+          {review && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                {review.fileUrl ? (
+                  isPdfUrl(review.fileUrl) ? (
+                    <iframe
+                      src={review.fileUrl}
+                      title="单据原件"
+                      className="h-80 w-full rounded-lg border border-border bg-white"
+                    />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={review.fileUrl}
+                      alt="单据原件"
+                      className="w-full rounded-lg border border-border object-contain bg-muted/30 max-h-80"
+                    />
+                  )
+                ) : (
+                  <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
+                    暂无原图
                   </div>
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="text-[11px]">
-                        <TableHead>科目</TableHead>
-                        <TableHead className="text-center">方向</TableHead>
-                        <TableHead className="text-right">金额</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {entries.map((e, i) => (
-                        <TableRow key={i} className="text-xs">
-                          <TableCell>{e.subject}</TableCell>
-                          <TableCell className="text-center">
-                            <span className={e.dir === '借' ? 'text-warning' : 'text-success'}>{e.dir}</span>
-                          </TableCell>
-                          <TableCell className="text-right font-mono tabular-nums">{fmtAmount(e.amount)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                  <div className="flex items-center justify-end gap-3 mt-2 text-[11px]">
-                    <span>借 {fmtAmount(debit)}</span>
-                    <span>贷 {fmtAmount(credit)}</span>
-                    <Badge variant="outline" className={balanced ? 'text-[10px] text-success' : 'text-[10px] text-destructive'}>
-                      {balanced ? '借贷平衡 ✓' : '不平衡'}
-                    </Badge>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label text="发票号码 / 凭证号" />
+                  <Input className="h-8 text-xs" value={review.voucherNo} onChange={(e) => setReview({ ...review, voucherNo: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label text="事项 / 货物名称" />
+                  <Input className="h-8 text-xs" value={review.itemDescription} onChange={(e) => setReview({ ...review, itemDescription: e.target.value })} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label text="开票日期" />
+                    <Input type="date" className="h-8 text-xs" value={review.businessDate} onChange={(e) => setReview({ ...review, businessDate: e.target.value })} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label text="价税合计" />
+                    <Input type="number" className="h-8 text-xs" value={review.amount} onChange={(e) => setReview({ ...review, amount: e.target.value })} />
                   </div>
                 </div>
-              );
-            })}
-          </div>
+                <div className="space-y-1.5">
+                  <Label text="销售方（对方单位）" />
+                  <Input className="h-8 text-xs" value={review.counterparty} onChange={(e) => setReview({ ...review, counterparty: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label text="类目（可选，AI 不识别，请手动填写）" />
+                  <Input className="h-8 text-xs" value={review.category} onChange={(e) => setReview({ ...review, category: e.target.value })} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {review && review.rawDataJson && Object.keys(review.rawDataJson).length > 0 && (
+            <div className="space-y-1.5">
+              <span className="text-[11px] text-muted-foreground">原始识别字段（只读，供核对）</span>
+              <ExtractedFields data={review.rawDataJson} />
+            </div>
+          )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setVoucherOpen(false)}>
-              取消
-            </Button>
-            <Button className="ripple-container" onClick={handleConfirmVoucher}>
-              确认生成 {voucherDocs.length} 张凭证
+            <Button variant="outline" onClick={() => setReviewOpen(false)}>取消</Button>
+            <Button className="ripple-container" onClick={handleConfirmReview} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? '保存中…' : (<><CheckCheck className="h-4 w-4" /> 确认</>)}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -934,13 +663,37 @@ function Label({ text }: { text: string }) {
   return <div className="text-[11px] text-muted-foreground">{text}</div>;
 }
 
+// 纯技术元数据字段（对用户无意义），在原始识别字段区隐藏
+const RAW_FIELDS_HIDE = new Set([
+  'algo_version', 'angle', 'ftype', 'height', 'width',
+  'orgHeight', 'orgWidth', 'sliceRect',
+]);
+
+/** 将任意值转为适合展示的字符串；对象/数组用缩进 JSON */
+function fmtRawValue(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'object') {
+    try {
+      const s = JSON.stringify(v, null, 2);
+      // 超长截断
+      return s.length > 300 ? s.slice(0, 300) + '…' : s;
+    } catch { return String(v); }
+  }
+  return String(v);
+}
+
 function ExtractedFields({ data }: { data: Record<string, unknown> }) {
+  const entries = Object.entries(data).filter(([k]) => !RAW_FIELDS_HIDE.has(k));
+  if (!entries.length) return null;
   return (
-    <div className="rounded-lg border border-border divide-y divide-border">
-      {Object.entries(data).map(([k, v]) => (
-        <div key={k} className="flex items-center justify-between px-3 py-1.5 text-xs">
-          <span className="text-muted-foreground">{k}</span>
-          <span className="text-foreground font-medium tabular-nums">{String(v)}</span>
+    <div className="rounded-lg border border-border divide-y divide-border max-h-[280px] overflow-y-auto">
+      {entries.map(([k, v]) => (
+        <div key={k} className="flex gap-3 px-3 py-1.5 text-xs">
+          <span className="text-muted-foreground shrink-0 w-[140px]">{k}</span>
+          <span className="text-foreground font-medium tabular-nums break-all whitespace-pre-wrap">
+            {fmtRawValue(v)}
+          </span>
         </div>
       ))}
     </div>

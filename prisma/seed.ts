@@ -358,40 +358,21 @@ async function main() {
     const settlementEntity = await prisma.settlementEntity.findFirst({ where: { companyId: 1n } });
     const entityId = settlementEntity?.id ?? null;
 
-    // Collected documents
-    const collectedDoc1 = await prisma.collectedDocument.create({
-      data: {
-        companyId: 1n,
-        settlementEntityId: entityId,
-        name: '采购发票CN-2026-001',
-        category: '采购发票',
-        source: '供应商系统',
-        amount: 50000.00,
-        currency: 'CNY',
-        documentDate: new Date('2026-07-10'),
-        recognitionStatus: 'pending',
-      },
-    });
-    const collectedDoc2 = await prisma.collectedDocument.create({
-      data: {
-        companyId: 1n,
-        settlementEntityId: entityId,
-        name: '银行回单BR-2026-001',
-        category: '银行回单',
-        source: '银行系统',
-        amount: 30000.00,
-        currency: 'CNY',
-        documentDate: new Date('2026-07-12'),
-        recognitionStatus: 'pending',
-      },
-    });
-    console.log('  ✓ Collected Documents: 2');
+    // CollectedDocument 已合并入 SourceVoucher（2026-07-27）：以下 sourceVoucher 即原始凭证电子版。
 
-    // Source vouchers (use upsert with unique voucherNo)
-    await prisma.sourceVoucher.upsert({
-      where: { voucherNo: 'SV-20260701' },
-      update: {},
-      create: {
+    // Source vouchers (use fixed id for upsert — voucherNo 不再唯一)
+    const svIds = [1001, 1002, 1003, 1004];
+    let svIdx = 0;
+    async function upsertSV(data: Parameters<typeof prisma.sourceVoucher.create>[0]['data']) {
+      const id = BigInt(svIds[svIdx++]);
+      return prisma.sourceVoucher.upsert({
+        where: { id },
+        update: data,
+        create: { ...data, id },
+      });
+    }
+
+    await upsertSV({
         companyId: 1n,
         settlementEntityId: entityId,
         voucherNo: 'SV-20260701',
@@ -404,13 +385,10 @@ async function main() {
         handlerName: '周会计',
         handlerDepartment: '财务部',
         riskStatus: '待确认',
-        status: '待处理',
-      },
+        status: '待制证',
     });
-    await prisma.sourceVoucher.upsert({
-      where: { voucherNo: 'SV-20260702' },
-      update: {},
-      create: {
+
+    await upsertSV({
         companyId: 1n,
         settlementEntityId: entityId,
         voucherNo: 'SV-20260702',
@@ -423,8 +401,7 @@ async function main() {
         handlerName: '陈出纳',
         handlerDepartment: '财务部',
         riskStatus: '待确认',
-        status: '待处理',
-      },
+        status: '待制证',
     });
     console.log('  ✓ Source Vouchers: 2');
 

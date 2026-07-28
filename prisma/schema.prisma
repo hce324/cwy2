@@ -41,7 +41,6 @@ model Company {
   fundTransactions            FundTransaction[]
   paymentTasks                PaymentTask[]
   suppliers                   Supplier[]
-  collectedDocuments          CollectedDocument[]
   sourceVouchers              SourceVoucher[]
   accountingVouchers          AccountingVoucher[]
   ledgerEntries               LedgerEntry[]
@@ -254,7 +253,6 @@ model SettlementEntity {
   deletedAt DateTime? @map("deleted_at")
 
   company             Company              @relation(fields: [companyId], references: [id])
-  collectedDocuments  CollectedDocument[]
   sourceVouchers      SourceVoucher[]
   platformSettlements PlatformSettlement[]
 
@@ -339,52 +337,30 @@ model OpeningBalance {
 
 // ─── Phase 5: Vouchers ──────────────────────────────────────────────────────
 
-model CollectedDocument {
-  id                 BigInt    @id @default(autoincrement())
-  companyId          BigInt    @map("company_id")
-  settlementEntityId BigInt?   @map("settlement_entity_id")
-  name               String    @db.VarChar(255)
-  subDescription     String?   @map("sub_description") @db.VarChar(512)
-  category           String?   @db.VarChar(50)
-  source             String    @db.VarChar(255)
-  fileUrl            String?   @map("file_url") @db.VarChar(1024)
-  amount             Decimal   @db.Decimal(18, 2)
-  currency           String    @default("CNY") @db.VarChar(10)
-  documentDate       DateTime? @map("document_date") @db.Date
-  recognitionStatus  String    @default("pending") @map("recognition_status") @db.VarChar(50)
-  aiResult           String?   @map("ai_result") @db.VarChar(255)
-  isAbnormal         Boolean   @default(false) @map("is_abnormal")
-  isRead             Boolean   @default(false) @map("is_read")
-  rawDataJson        Json?     @map("raw_data_json")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
-  deletedAt          DateTime? @map("deleted_at")
-
-  company          Company           @relation(fields: [companyId], references: [id])
-  settlementEntity SettlementEntity? @relation(fields: [settlementEntityId], references: [id])
-
-  @@index([companyId])
-  @@index([category])
-  @@index([recognitionStatus])
-  @@index([documentDate])
-  @@map("collected_documents")
-}
+// CollectedDocument 模型已合并入 SourceVoucher（2026-07-27）：采集录入即原始凭证电子版。
 
 model SourceVoucher {
   id                 BigInt    @id @default(autoincrement())
   companyId          BigInt    @map("company_id")
   settlementEntityId BigInt?   @map("settlement_entity_id")
-  voucherNo          String    @map("voucher_no") @db.VarChar(30)
-  itemDescription    String    @map("item_description") @db.VarChar(512)
+  voucherNo          String    @map("voucher_no") @db.VarChar(30) // 原始凭证号
+  itemDescription    String    @map("item_description") @db.VarChar(512) // 事项/摘要
   businessDate       DateTime  @map("business_date") @db.Date
   amount             Decimal   @db.Decimal(18, 2)
+  currency           String    @default("CNY") @db.VarChar(10)
+  category           String?   @db.VarChar(50)
+  source             String    @default("smart") @map("source") @db.VarChar(50) // smart=智能采集 manual=手工
+  fileUrl            String?   @map("file_url") @db.VarChar(1024) // 原图（OSS / 本地）
+  rawDataJson        Json?     @map("raw_data_json") // 录入结构化字段
+  recognitionStatus  String    @default("pending") @map("recognition_status") @db.VarChar(50)
   includedDocuments  String?   @map("included_documents") @db.VarChar(512)
   riskStatus         String    @default("待确认") @map("risk_status") @db.VarChar(50)
   businessEntity     String?   @map("business_entity") @db.VarChar(255)
   counterparty       String?   @db.VarChar(255)
   handlerName        String?   @map("handler_name") @db.VarChar(100)
   handlerDepartment  String?   @map("handler_department") @db.VarChar(100)
-  status             String    @default("待处理") @db.VarChar(50)
+  voucherId          BigInt?   @map("voucher_id") // 关联生成的记账凭证
+  status             String    @default("待制证") @db.VarChar(50) // 待制证 / 已制证
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
   deletedAt          DateTime? @map("deleted_at")
@@ -394,10 +370,11 @@ model SourceVoucher {
   businessFacts       VoucherBusinessFact[]
   verificationResults VoucherVerificationResult[]
 
-  @@unique([voucherNo])
   @@index([companyId])
   @@index([status])
   @@index([businessDate])
+  @@index([recognitionStatus])
+  @@index([voucherId])
   @@map("source_vouchers")
 }
 
@@ -438,7 +415,7 @@ model AccountingVoucher {
   id              BigInt    @id @default(autoincrement())
   companyId       BigInt    @map("company_id")
   fiscalPeriodId  BigInt    @map("fiscal_period_id")
-  sourceVoucherId BigInt?   @map("source_voucher_id")
+  sourceVoucherIds Json?   @map("source_voucher_ids")
   voucherNo       String    @map("voucher_no") @db.VarChar(30)
   voucherWord     String    @map("voucher_word") @db.VarChar(10)
   voucherNumber   Int       @map("voucher_number")

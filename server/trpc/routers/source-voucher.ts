@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure, router } from '../init';
 import { tenantWhere } from '@/lib/tenant';
+import { uploadFile } from '@/server/lib/oss';
+import { recognizeInvoice } from '@/server/lib/invoice-ocr';
 
 // ─── Zod schemas ──────────────────────────────────────────────────
 
@@ -15,19 +17,44 @@ const listSchema = z.object({
   offset: z.number().min(0).default(0),
 });
 
+// 采集录入即原始凭证电子版：支持原图上传(fileData)、结构化录入(rawDataJson)、类目/来源等。
 const createSchema = z.object({
-  settlementEntityId: z.number().optional(),
-  voucherNo: z.string().min(1, '编号不能为空'),
+  voucherNo: z.string().min(1).optional(), // 原始凭证号，缺省自动生成
   itemDescription: z.string().min(1, '事项描述不能为空'),
-  businessDate: z.string(),
-  amount: z.number().positive('金额必须大于0'),
-  includedDocuments: z.string().optional(),
-  riskStatus: z.string().default('待确认'),
+  businessDate: z.string().optional(),
+  amount: z.number().optional(),
+  currency: z.string().default('CNY'),
+  category: z.string().max(50).optional(),
+  source: z.string().default('smart'), // smart=智能采集 manual=手工
+  fileData: z.string().optional(), // 原图 base64 data URL，服务端上传 OSS / 本地
+  rawDataJson: z.any().optional(), // 录入结构化字段
+  recognitionStatus: z.string().default('recognized'),
+  settlementEntityId: z.number().optional(),
   businessEntity: z.string().optional(),
   counterparty: z.string().optional(),
   handlerName: z.string().optional(),
   handlerDepartment: z.string().optional(),
+  riskStatus: z.string().default('待确认'),
+  status: z.string().default('待制证'),
 });
+
+const revertSchema = z.object({ id: z.number() });
+
+// AI 发票识别后人工核对：可修正字段并确认识别结果
+const updateSchema = z.object({
+  id: z.number(),
+  voucherNo: z.string().optional(),
+  itemDescription: z.string().optional(),
+  businessDate: z.string().optional(),
+  amount: z.number().optional(),
+  counterparty: z.string().optional(),
+  recognitionStatus: z.string().optional(),
+  rawDataJson: z.any().optional(),
+  category: z.string().optional(),
+});
+
+// AI 发票识别：按 id 调 OCR 抽取字段回填
+const recognizeSchema = z.object({ id: z.number() });
 
 const verifyInputSchema = z.object({
   id: z.number(),
@@ -93,25 +120,39 @@ export const sourceVoucherRouter = router({
       });
     }),
 
+  // 智能采集唯一录入入口：创建原始凭证（电子版）
   create: protectedProcedure
     .input(createSchema)
     .mutation(async ({ ctx, input }) => {
+      // 原图上传：fileData(base64) → OSS / 本地，得到可访问 URL
+      let fileUrl: string | null = null;
+      if (input.fileData) {
+        fileUrl = await uploadFile(input.fileData);
+      }
+
+      const voucherNo = input.voucherNo || `YS${Date.now()}`;
+
       return ctx.db.$transaction(async (tx) => {
         const voucher = await tx.sourceVoucher.create({
           data: {
             companyId: BigInt(ctx.user.companyId),
             settlementEntityId: input.settlementEntityId ? BigInt(input.settlementEntityId) : null,
-            voucherNo: input.voucherNo,
+            voucherNo,
             itemDescription: input.itemDescription,
-            businessDate: new Date(input.businessDate),
-            amount: input.amount,
-            includedDocuments: input.includedDocuments,
+            businessDate: input.businessDate ? new Date(input.businessDate) : new Date(),
+            amount: input.amount ?? 0,
+            currency: input.currency ?? 'CNY',
+            category: input.category ?? null,
+            source: input.source ?? 'smart',
+            fileUrl,
+            rawDataJson: input.rawDataJson,
+            recognitionStatus: input.recognitionStatus ?? 'recognized',
             riskStatus: input.riskStatus,
             businessEntity: input.businessEntity,
             counterparty: input.counterparty,
             handlerName: input.handlerName,
             handlerDepartment: input.handlerDepartment,
-            status: '待处理',
+            status: input.status,
           },
         });
 
@@ -123,7 +164,7 @@ export const sourceVoucherRouter = router({
             action: 'CREATE',
             entityType: 'source_voucher',
             entityId: voucher.id,
-            newValueJson: { voucherNo: input.voucherNo, itemDescription: input.itemDescription },
+            newValueJson: { voucherNo, itemDescription: input.itemDescription },
           },
         });
 
@@ -131,6 +172,76 @@ export const sourceVoucherRouter = router({
       });
     }),
 
+  // 编辑已录入的原始凭证（用于 AI 识别后人工核对：修正字段 / 确认识别结果）
+  update: protectedProcedure
+    .input(updateSchema)
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.sourceVoucher.findFirst({
+        where: { ...tenantWhere(ctx.user.companyId), id: input.id },
+      });
+      if (!existing) throw new TRPCError({ code: 'NOT_FOUND' });
+
+      const data: any = {};
+      if (input.voucherNo !== undefined) data.voucherNo = input.voucherNo;
+      if (input.itemDescription !== undefined) data.itemDescription = input.itemDescription;
+      if (input.businessDate !== undefined) data.businessDate = new Date(input.businessDate);
+      if (input.amount !== undefined) data.amount = input.amount;
+      if (input.counterparty !== undefined) data.counterparty = input.counterparty;
+      if (input.recognitionStatus !== undefined) data.recognitionStatus = input.recognitionStatus;
+      if (input.rawDataJson !== undefined) data.rawDataJson = input.rawDataJson;
+      if (input.category !== undefined) data.category = input.category;
+
+      const updated = await ctx.db.sourceVoucher.update({ where: { id: input.id }, data });
+
+      await ctx.db.auditLog.create({
+        data: {
+          companyId: BigInt(ctx.user.companyId),
+          userId: BigInt(ctx.user.id),
+          action: 'UPDATE',
+          entityType: 'source_voucher',
+          entityId: BigInt(input.id),
+          newValueJson: { ...data },
+        },
+      });
+
+      return updated;
+    }),
+
+  // AI 发票识别：调用阿里云增值税发票 OCR 抽取字段，回填 sourceVoucher，置「待核对」待人工确认。
+  recognize: protectedProcedure
+    .input(recognizeSchema)
+    .mutation(async ({ ctx, input }) => {
+      const voucher = await ctx.db.sourceVoucher.findFirst({
+        where: { ...tenantWhere(ctx.user.companyId), id: input.id },
+      });
+      if (!voucher) throw new TRPCError({ code: 'NOT_FOUND' });
+
+      const recognized = await recognizeInvoice(voucher.fileUrl);
+
+      const data: any = { recognitionStatus: '待核对', rawDataJson: recognized.raw };
+      if (recognized.invoiceNo) data.voucherNo = recognized.invoiceNo;
+      if (recognized.amount != null) data.amount = recognized.amount;
+      if (recognized.invoiceDate) data.businessDate = new Date(recognized.invoiceDate);
+      if (recognized.itemName) data.itemDescription = recognized.itemName;
+      if (recognized.sellerName) data.counterparty = recognized.sellerName;
+
+      const updated = await ctx.db.sourceVoucher.update({ where: { id: input.id }, data });
+
+      await ctx.db.auditLog.create({
+        data: {
+          companyId: BigInt(ctx.user.companyId),
+          userId: BigInt(ctx.user.id),
+          action: 'RECOGNIZE',
+          entityType: 'source_voucher',
+          entityId: BigInt(input.id),
+          newValueJson: { recognitionStatus: '待核对', fields: recognized.raw as any },
+        },
+      });
+
+      return { recognized, voucher: updated };
+    }),
+
+  // 校验为软关卡：记录核对结果，全部通过则标记资料完整；不阻塞后续制证。
   verify: protectedProcedure
     .input(verifyInputSchema)
     .mutation(async ({ ctx, input }) => {
@@ -138,18 +249,15 @@ export const sourceVoucherRouter = router({
         where: { ...tenantWhere(ctx.user.companyId), id: input.id },
       });
       if (!voucher) throw new TRPCError({ code: 'NOT_FOUND' });
-      if (voucher.status !== '待处理' && voucher.status !== '待校验') {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: '只能校验待处理或待校验状态的原单' });
-      }
+
+      const allPassed = input.results.every((r) => r.isPassed);
 
       return ctx.db.$transaction(async (tx) => {
-        // Update status to '已校验'
         const updated = await tx.sourceVoucher.update({
           where: { id: input.id },
-          data: { status: '已校验' },
+          data: { riskStatus: allPassed ? '资料完整' : '待确认' },
         });
 
-        // Create verification results
         await tx.voucherVerificationResult.createMany({
           data: input.results.map((r) => ({
             voucherId: BigInt(input.id),
@@ -158,7 +266,6 @@ export const sourceVoucherRouter = router({
           })),
         });
 
-        // Audit log
         await tx.auditLog.create({
           data: {
             companyId: BigInt(ctx.user.companyId),
@@ -166,7 +273,7 @@ export const sourceVoucherRouter = router({
             action: 'VERIFY',
             entityType: 'source_voucher',
             entityId: BigInt(input.id),
-            newValueJson: { status: '已校验', results: input.results },
+            newValueJson: { riskStatus: updated.riskStatus, results: input.results },
           },
         });
 
@@ -174,32 +281,32 @@ export const sourceVoucherRouter = router({
       });
     }),
 
-  postToVoucher: protectedProcedure
-    .input(z.object({ id: z.number() }))
+  // 退回：将已制证的原始凭证拆回待制证（清空关联记账凭证 id）
+  revert: protectedProcedure
+    .input(revertSchema)
     .mutation(async ({ ctx, input }) => {
       const voucher = await ctx.db.sourceVoucher.findFirst({
         where: { ...tenantWhere(ctx.user.companyId), id: input.id },
       });
       if (!voucher) throw new TRPCError({ code: 'NOT_FOUND' });
-      if (voucher.status !== '已校验') {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: '只有已校验状态的原单才能入账' });
+      if (!voucher.voucherId) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: '该原始凭证尚未制证，无需退回' });
       }
 
       return ctx.db.$transaction(async (tx) => {
         const updated = await tx.sourceVoucher.update({
           where: { id: input.id },
-          data: { status: '已入账' },
+          data: { voucherId: null, status: '待制证' },
         });
 
-        // Audit log
         await tx.auditLog.create({
           data: {
             companyId: BigInt(ctx.user.companyId),
             userId: BigInt(ctx.user.id),
-            action: 'POST',
+            action: 'REVERT',
             entityType: 'source_voucher',
             entityId: BigInt(input.id),
-            newValueJson: { status: '已入账' },
+            newValueJson: { status: '待制证' },
           },
         });
 

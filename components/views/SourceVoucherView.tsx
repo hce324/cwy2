@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc-client';
+import { useAppStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,13 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle2, ChevronLeft, Search } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { CheckCircle2, ChevronLeft, Search, FileImage } from 'lucide-react';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -36,6 +43,26 @@ function riskBadgeLabel(riskStatus: string | undefined): { label: string; cls: s
   }
 }
 
+/** 从 fileUrl 提取文件名（去掉路径和查询参数） */
+function fileNameFromUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  try {
+    const pathname = new URL(url).pathname;
+    const base = pathname.split('/').pop() ?? '';
+    return decodeURIComponent(base);
+  } catch {
+    // 不是完整 URL，当作路径处理
+    return url.split(/[\\/]/).pop() ?? url;
+  }
+}
+
+/** 根据扩展名判断是否为图片（弹窗内可内联预览） */
+function isImageUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  const name = fileNameFromUrl(url).toLowerCase();
+  return /\.(png|jpe?g|gif|webp|bmp|avif|svg)$/.test(name);
+}
+
 // ─── Component ──────────────────────────────────────────────────────
 
 export function SourceVoucherView() {
@@ -47,8 +74,11 @@ export function SourceVoucherView() {
 
   // --- detail state ---
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  // 原图预览弹窗：点击列表「原始单据」文件名时打开
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
+  const setView = useAppStore((s) => s.setView);
 
   // ─── Queries ─────────────────────────────────────────────────────
 
@@ -78,14 +108,14 @@ export function SourceVoucherView() {
     },
   });
 
-  const postMutation = trpc.sourceVoucher.postToVoucher.useMutation({
+  const revertMutation = trpc.sourceVoucher.revert.useMutation({
     onSuccess: () => {
-      toast.success('已入账');
+      toast.success('已退回，原始凭证恢复待制证');
       utils.sourceVoucher.list.invalidate();
       if (selectedId !== null) utils.sourceVoucher.byId.invalidate({ id: selectedId });
     },
     onError: (err) => {
-      toast.error(err.message || '入账失败，请重试');
+      toast.error(err.message || '退回失败，请重试');
     },
   });
 
@@ -103,8 +133,8 @@ export function SourceVoucherView() {
     });
   };
 
-  const handlePost = (id: number) => {
-    postMutation.mutate({ id });
+  const handleRevert = (id: number) => {
+    revertMutation.mutate({ id });
   };
 
   // ─── Derived data ────────────────────────────────────────────────
@@ -122,11 +152,12 @@ export function SourceVoucherView() {
   // ─── KPI stats ──────────────────────────────────────────────────
 
   const stats = useMemo(() => {
-    const pending = items.filter((v) => v.status === '待处理').length;
+    const pending = items.filter((v) => v.status === '待制证').length;
+    const made = items.filter((v) => v.status === '已制证').length;
     const missingDocs = items.filter(
       (v) => !v.includedDocuments || v.includedDocuments.trim() === '',
     ).length;
-    return { pending, missingDocs };
+    return { pending, made, missingDocs };
   }, [items]);
 
   // ═══════════════════════════════════════════════════════════════
@@ -178,8 +209,6 @@ export function SourceVoucherView() {
     const facts = detail.businessFacts ?? [];
     const verifications = detail.verificationResults ?? [];
     const firstFact = facts.length > 0 ? facts[0] : null;
-    const allVerificationsPassed =
-      verifications.length > 0 && verifications.every((r) => r.isPassed);
 
     const docList = detail.includedDocuments
       ? detail.includedDocuments.split('＋').map((d) => d.trim()).filter(Boolean)
@@ -200,27 +229,22 @@ export function SourceVoucherView() {
         </p>
 
         {/* Status banner */}
-        {detail.status === '已校验' && allVerificationsPassed ? (
-          <div className="bg-success/10 rounded-lg p-3 text-sm">
+        {detail.voucherId ? (
+          <div className="bg-success/10 rounded-lg p-3 text-sm flex items-center justify-between">
             <span className="font-medium text-success">
-              状态：资料完整，可提交复核
+              状态：已制证（关联记账凭证 #{String(detail.voucherId)}）
             </span>
-          </div>
-        ) : detail.status === '已入账' ? (
-          <div className="bg-success/10 rounded-lg p-3 text-sm">
-            <span className="font-medium text-success">状态：已入账</span>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setView('hz-voucher')}>
+              查看凭证
+            </Button>
           </div>
         ) : detail.riskStatus === '资料完整' ? (
           <div className="bg-success/10 rounded-lg p-3 text-sm">
-            <span className="font-medium text-success">
-              状态：{detail.riskStatus}，可提交复核
-            </span>
+            <span className="font-medium text-success">状态：资料完整，可提交制证</span>
           </div>
         ) : (
           <div className="bg-warning/10 rounded-lg p-3 text-sm">
-            <span className="font-medium text-warning">
-              状态：{detail.riskStatus || '待处理'}
-            </span>
+            <span className="font-medium text-warning">状态：待制证</span>
           </div>
         )}
 
@@ -239,6 +263,10 @@ export function SourceVoucherView() {
             <p className="font-medium">{detail.counterparty || '—'}</p>
           </div>
           <div>
+            <span className="text-xs text-muted-foreground">金额</span>
+            <p className="font-medium">{fmtAmount(detail.amount)} {detail.currency || 'CNY'}</p>
+          </div>
+          <div>
             <span className="text-xs text-muted-foreground">经办人</span>
             <p className="font-medium">
               {detail.handlerName
@@ -247,6 +275,22 @@ export function SourceVoucherView() {
             </p>
           </div>
         </div>
+
+        {detail.fileUrl && (
+          <Card className="elevation-1">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">原始凭证原图</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={detail.fileUrl}
+                alt="原始凭证原图"
+                className="w-full rounded-lg border border-border object-contain bg-muted/30"
+              />
+            </CardContent>
+          </Card>
+        )}
 
         <Separator />
 
@@ -350,30 +394,28 @@ export function SourceVoucherView() {
         )}
 
         {/* Actions */}
-        {detail.status !== '已入账' && (
-          <div className="flex items-center gap-2 pt-2">
-            {detail.status !== '已校验' && (
-              <Button
-                size="sm"
-                onClick={() => handleVerify(Number(detail.id))}
-                disabled={verifyMutation.isPending}
-              >
-                <CheckCircle2 className="h-4 w-4 mr-1" />
-                {verifyMutation.isPending ? '校验中...' : '校验通过'}
-              </Button>
-            )}
-            {detail.status === '已校验' && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handlePost(Number(detail.id))}
-                disabled={postMutation.isPending}
-              >
-                {postMutation.isPending ? '入账中...' : '确认入账'}
-              </Button>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-2 pt-2">
+          {!detail.voucherId && detail.status === '待制证' && (
+            <Button
+              size="sm"
+              onClick={() => handleVerify(Number(detail.id))}
+              disabled={verifyMutation.isPending}
+            >
+              <CheckCircle2 className="h-4 w-4 mr-1" />
+              {verifyMutation.isPending ? '校验中...' : '校验通过'}
+            </Button>
+          )}
+          {detail.voucherId && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleRevert(Number(detail.id))}
+              disabled={revertMutation.isPending}
+            >
+              {revertMutation.isPending ? '退回中...' : '退回重制'}
+            </Button>
+          )}
+        </div>
 
         <p className="text-xs text-muted-foreground italic">
           提示：本页不形成会计分录 — 复核通过后，系统仅把这些业务事实和原始单据传递到"凭证填制"模块，由会计专员确定摘要、会计科目和借贷金额。
@@ -450,9 +492,8 @@ export function SourceVoucherView() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部</SelectItem>
-            <SelectItem value="待处理">待处理</SelectItem>
-            <SelectItem value="已校验">已校验</SelectItem>
-            <SelectItem value="已入账">已入账</SelectItem>
+            <SelectItem value="待制证">待制证</SelectItem>
+            <SelectItem value="已制证">已制证</SelectItem>
           </SelectContent>
         </Select>
         <Select value={riskStatus} onValueChange={(v) => setRiskStatus(v ?? 'all')}>
@@ -515,7 +556,7 @@ export function SourceVoucherView() {
                   <TableHead>资料包/事项</TableHead>
                   <TableHead>业务日期</TableHead>
                   <TableHead className="text-right">金额</TableHead>
-                  <TableHead>所含原始单据</TableHead>
+                  <TableHead>原始单据</TableHead>
                   <TableHead>风险</TableHead>
                   <TableHead className="text-center">操作</TableHead>
                 </TableRow>
@@ -531,7 +572,21 @@ export function SourceVoucherView() {
                       <TableCell className="text-right font-mono">
                         {fmtAmount(v.amount)}
                       </TableCell>
-                      <TableCell>{v.includedDocuments || '—'}</TableCell>
+                      <TableCell>
+                        {v.fileUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewUrl(v.fileUrl!)}
+                            className="text-primary hover:underline inline-flex items-center gap-1 max-w-[160px] truncate"
+                            title={`查看原件：${fileNameFromUrl(v.fileUrl)}`}
+                          >
+                            <FileImage className="h-3.5 w-3.5 shrink-0" />
+                            {fileNameFromUrl(v.fileUrl)}
+                          </button>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge className={risk.cls}>{risk.label}</Badge>
                       </TableCell>
@@ -553,6 +608,49 @@ export function SourceVoucherView() {
           )}
         </CardContent>
       </Card>
+
+      {/* 原图预览弹窗：点列表「原始单据」文件名打开，内联查看而非下载 */}
+      <Dialog open={previewUrl !== null} onOpenChange={(o) => !o && setPreviewUrl(null)}>
+        <DialogContent
+          className="max-h-[90vh]"
+          style={{ maxWidth: '92vw', width: '92vw' }}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileImage className="h-4 w-4" />
+              {previewUrl ? fileNameFromUrl(previewUrl) : '原始凭证原图'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[75vh] overflow-auto rounded-lg border border-border bg-muted/30 flex items-center justify-center p-2">
+            {previewUrl && isImageUrl(previewUrl) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={previewUrl}
+                alt={fileNameFromUrl(previewUrl)}
+                className="max-w-full max-h-[75vh] object-contain"
+              />
+            ) : previewUrl ? (
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                该单据为 PDF 格式，弹窗暂不支持预览。
+                <br />
+                请在「查看详情」中查看原件，或
+                <a
+                  href={previewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  在新标签页打开
+                </a>
+                。
+              </div>
+            ) : null}
+          </div>
+          <Button variant="outline" className="w-full" onClick={() => setPreviewUrl(null)}>
+            关闭
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

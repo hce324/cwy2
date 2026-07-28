@@ -19,17 +19,17 @@ export async function generateVoucherNo(
   // 查当月该类凭证最大号
   const latest = await db.accountingVoucher.findFirst({
     where: {
-      company_id: companyId,
-      voucher_word: word,
-      voucher_date: {
+      companyId: BigInt(companyId),
+      voucherWord: word,
+      voucherDate: {
         gte: new Date(`${year}-${month}-01`),
       },
     },
-    orderBy: { voucher_number: 'desc' },
-    select: { voucher_number: true },
+    orderBy: { voucherNumber: 'desc' },
+    select: { voucherNumber: true },
   });
 
-  const nextNumber = (latest?.voucher_number ?? 0) + 1;
+  const nextNumber = (latest?.voucherNumber ?? 0) + 1;
   const paddedNumber = String(nextNumber).padStart(3, '0');
 
   return `${WORD_PREFIX[word]}${paddedNumber}号`;

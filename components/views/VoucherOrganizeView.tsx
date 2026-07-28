@@ -59,7 +59,7 @@ export function VoucherOrganizeView() {
     auditStatus: 'all',
     year: String(period.year),
     month: String(period.month),
-    limit: 200,
+    limit: 100,
     offset: 0,
   });
 

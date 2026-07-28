@@ -17,7 +17,6 @@ import { closingRouter } from './routers/closing';
 import { riskRouter } from './routers/risk';
 import { auditRouter } from './routers/audit';
 import { settingsRouter } from './routers/settings';
-import { documentsRouter } from './routers/documents';
 import { sourceVoucherRouter } from './routers/source-voucher';
 import { reconciliationRouter } from './routers/reconciliation';
 import { inventoryRouter } from './routers/inventory';
@@ -47,7 +46,6 @@ export const appRouter = router({
   audit: auditRouter,
   settings: settingsRouter,
   reconciliation: reconciliationRouter,
-  documents: documentsRouter,
   sourceVoucher: sourceVoucherRouter,
   inventory: inventoryRouter,
   import: importRouter,
