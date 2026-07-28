@@ -38,6 +38,7 @@ import {
   Bar,
   LabelList,
 } from 'recharts';
+import { fmtAmount, fmtDate } from '@/lib/format';
 
 // ============================================================
 // Demo chart data — no time-series API for balance trend / cash flow structure yet.
@@ -80,23 +81,10 @@ const BUSINESS_FINANCE_ITEMS = [
 // Helpers
 // ============================================================
 
-/** Format a Decimal / number / string to ¥X.XX (raw value, not 万元) */
-function fmtAmount(n: unknown): string {
-  const v = Number(n ?? 0);
-  return `¥${v.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`;
-}
-
 /** Format a Decimal / number / string to 万元 with one decimal */
 function fmtWan(n: unknown): string {
   const v = Number(n ?? 0) / 10000;
   return `¥${v.toFixed(2)}万`;
-}
-
-/** Format a date-like value to YYYY-MM-DD */
-function fmtDate(d: unknown): string {
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  const s = String(d ?? '');
-  return s.slice(0, 10);
 }
 
 function statusBadge(s: string | undefined): { label: string; cls: string } {

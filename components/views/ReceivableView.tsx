@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc-client';
 import { cn } from '@/lib/utils';
-import { formatDelta, type DeltaResult } from '@/lib/kpi';
+import { formatDelta, type DeltaResult } from '@/lib/format';
 import { RISK_LEVELS, type RiskLevel } from '@/lib/risk';
 import {
   Card,

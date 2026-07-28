@@ -36,6 +36,7 @@ import {
   Calculator,
   PenLine,
 } from 'lucide-react';
+import { fmtAmount } from '@/lib/format';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -79,10 +80,6 @@ const OUTBOUND_TYPE_ICON: Record<string, React.ReactNode> = {
   '领料出库': <ClipboardList className="h-4 w-4 text-warning" />,
   '报废出库': <TrendingDown className="h-4 w-4 text-destructive" />,
 };
-
-function fmtAmount(n: unknown): string {
-  return `¥${Number(n ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`;
-}
 
 /* ================================================================== */
 /*  Main Component                                                     */

@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
+import { fmtDate } from '@/lib/format';
 
 // ============================================================================
 // Formatting helpers
@@ -18,11 +19,6 @@ import { toast } from 'sonner';
 
 function fmtCurrency(n: unknown): string {
   return `¥${Number(n ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`;
-}
-
-function fmtDate(d: unknown): string {
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  return String(d ?? '');
 }
 
 function taxTypeBadge(taxType: string): string {

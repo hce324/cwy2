@@ -21,17 +21,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { CheckCircle2, ChevronLeft, Search, FileImage } from 'lucide-react';
+import { fmtDate, fmtAmount } from '@/lib/format';
 
 // ─── Helpers ────────────────────────────────────────────────────────
-
-function fmtDate(d: unknown): string {
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  return String(d ?? '').slice(0, 10);
-}
-
-function fmtAmount(amount: unknown): string {
-  return `¥${Number(amount ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`;
-}
 
 function riskBadgeLabel(riskStatus: string | undefined): { label: string; cls: string } {
   if (!riskStatus) return { label: '—', cls: 'bg-muted/10 text-muted-foreground' };

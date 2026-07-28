@@ -59,6 +59,7 @@ import {
   ResponsiveContainer,
   ComposedChart,
 } from 'recharts';
+import { fmtDate } from '@/lib/format';
 
 // ============================================================
 // Type helpers for tRPC responses (Decimal / bigint → primitives)
@@ -195,12 +196,6 @@ function fmtCurrencyWan(v: number): string {
 
 function fmtPct(v: number): string {
   return `${v.toFixed(1)}%`;
-}
-
-function fmtDate(d: Date | string | undefined | null): string {
-  if (!d) return '—';
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  return String(d).slice(0, 10);
 }
 
 function fmtMonth(d: Date | string): string {

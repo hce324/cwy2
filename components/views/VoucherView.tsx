@@ -18,20 +18,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Plus, FileText, Search, Trash2, Link2, Eye } from 'lucide-react';
+import { fmtDate, fmtAmount } from '@/lib/format';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
 function fmtVoucherNo(v: { voucherWord: string; voucherNumber: number }): string {
   return `${v.voucherWord}字${v.voucherNumber}号`;
-}
-
-function fmtDate(d: unknown): string {
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  return String(d ?? '').slice(0, 10);
-}
-
-function fmtAmount(n: unknown): string {
-  return `¥${Number(n ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`;
 }
 
 function statusBadge(s: string | undefined): { label: string; cls: string } {

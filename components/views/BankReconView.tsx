@@ -13,18 +13,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, RotateCcw, CheckCircle2, FileCheck, ShieldAlert } from 'lucide-react';
+import { fmtDate } from '@/lib/format';
 
 // ─── Helpers ────────────────────────────────────────────────────────────
 
 function fmtCurrency(n: number | string | undefined | null): string {
   const v = Number(n ?? 0);
   return `¥${v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function fmtDate(d: Date | string | undefined | null): string {
-  if (!d) return '—';
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  return String(d).slice(0, 10);
 }
 
 function fmtShortDate(d: Date | string | undefined | null): string {

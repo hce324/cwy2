@@ -17,6 +17,7 @@ import { RippleContainer } from '@/components/custom/RippleContainer';
 import { ArrowRight, AlertTriangle, Loader2, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ViewId } from '@/lib/types';
+import { fmtAmount, fmtDate } from '@/lib/format';
 
 // ============================================================
 // Types & Constants
@@ -44,18 +45,6 @@ const flowSteps = [
 // ============================================================
 
 /** Format a Decimal / number / string to ¥X.XX */
-function fmtAmount(n: unknown): string {
-  const v = Number(n ?? 0);
-  return `¥${v.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`;
-}
-
-/** Format a date-like value to YYYY-MM-DD */
-function fmtDate(d: unknown): string {
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  const s = String(d ?? '');
-  return s.slice(0, 10);
-}
-
 /** Format a DB id + createdAt into "FK-YYYYMM-NNNN" style */
 function formatPaymentId(id: unknown, createdAt: unknown): string {
   const numId = String(id ?? '');

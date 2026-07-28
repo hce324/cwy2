@@ -47,6 +47,7 @@ import {
   Ban,
   AlertTriangle,
 } from 'lucide-react';
+import { fmtDate } from '@/lib/format';
 
 // ============================================================================
 // Formatting helpers
@@ -62,13 +63,6 @@ function toNum(v: unknown): number {
   if (typeof v === 'bigint') return Number(v);
   if (typeof v === 'string') return parseFloat(v) || 0;
   return Number(v) || 0;
-}
-
-/** Format a Date / string to YYYY-MM-DD. */
-function fmtDate(d: unknown): string {
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  if (typeof d === 'string') return d.slice(0, 10);
-  return String(d ?? '').slice(0, 10);
 }
 
 // ============================================================================

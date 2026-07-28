@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { RippleContainer } from '@/components/custom/RippleContainer';
 import { Trash2, AlertTriangle, RotateCcw } from 'lucide-react';
+import { fmtDate, fmtAmount } from '@/lib/format';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -32,15 +33,6 @@ const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'
 
 function fmtVoucherNo(v: { voucherWord: string; voucherNumber: number }): string {
   return `${v.voucherWord}字${v.voucherNumber}号`;
-}
-
-function fmtDate(d: unknown): string {
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  return String(d ?? '').slice(0, 10);
-}
-
-function fmtAmount(n: unknown): string {
-  return `¥${Number(n ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`;
 }
 
 // ─── Component ──────────────────────────────────────────────────────

@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Scale, Hash, Calendar } from 'lucide-react';
+import { fmtDate } from '@/lib/format';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -21,11 +22,6 @@ const CHECK_TYPE_META: Record<string, { label: string; icon: typeof Scale }> = {
 
 function getCheckMeta(checkType: string) {
   return CHECK_TYPE_META[checkType] ?? { label: checkType, icon: Scale };
-}
-
-function fmtDate(d: unknown): string {
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  return String(d ?? '').slice(0, 10);
 }
 
 // ─── Component ──────────────────────────────────────────────────────

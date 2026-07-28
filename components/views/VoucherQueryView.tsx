@@ -56,6 +56,7 @@ import {
   History,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { fmtDate, fmtAmount } from '@/lib/format';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -65,15 +66,6 @@ type AuditStatus = 'pending' | 'approved' | 'posted';
 
 function fmtVoucherNo(v: { voucherWord: string; voucherNumber: number }): string {
   return `${v.voucherWord}字${v.voucherNumber}号`;
-}
-
-function fmtDate(d: unknown): string {
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  return String(d ?? '').slice(0, 10);
-}
-
-function fmtAmount(n: unknown): string {
-  return `¥${Number(n ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`;
 }
 
 function getCategoryLabel(voucherWord: string): string {

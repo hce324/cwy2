@@ -25,19 +25,11 @@ import {
   Search,
   Wallet,
 } from 'lucide-react';
+import { fmtDate, fmtAmount } from '@/lib/format';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
-
-function fmtDate(d: unknown): string {
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  return String(d ?? '').slice(0, 10);
-}
-
-function fmtAmount(n: unknown): string {
-  return `¥${Number(n ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`;
-}
 
 function approvalBadge(s: string | undefined): { label: string; cls: string } {
   switch (s) {

@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
-import { formatDelta, type DeltaResult } from '@/lib/kpi';
+import { fmtAmount, fmtCompact, formatDelta, type DeltaResult } from '@/lib/format';
 import { RISK_LEVELS, countRiskLevels, type RiskLevel } from '@/lib/risk';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -85,29 +85,9 @@ function toNum(v: unknown): number {
 // Formatting helpers
 // ============================================================================
 
-/**
- * 自适应金额格式化（入参单位：元）。
- * 大数自动升级到 万 / 亿，避免超长字符串撑破卡片与图表。
- */
-function fmtAmount(v: number): string {
-  const abs = Math.abs(v);
-  if (abs >= 1e8) return `¥${(v / 1e8).toFixed(2)}亿`;
-  if (abs >= 1e4) return `¥${(v / 1e4).toLocaleString('zh-CN', { maximumFractionDigits: 1 })}万`;
-  return `¥${v.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`;
-}
-
 /** tooltip 用，同 fmtAmount */
 function fmtWan(v: number): string {
   return fmtAmount(v);
-}
-
-/** 坐标轴刻度 / 图内标签用的紧凑格式（无 ¥ 前缀） */
-function fmtCompact(v: number): string {
-  const abs = Math.abs(v);
-  const sign = v < 0 ? '-' : '';
-  if (abs >= 1e8) return `${sign}${(abs / 1e8).toFixed(1)}亿`;
-  if (abs >= 1e4) return `${sign}${(abs / 1e4).toFixed(0)}万`;
-  return `${sign}${abs.toFixed(0)}`;
 }
 
 /**

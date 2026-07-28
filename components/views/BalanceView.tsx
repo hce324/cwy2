@@ -9,14 +9,9 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Scale, CheckCircle2, Download, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc-client';
+import { fmtMoney } from '@/lib/format';
 
 // ─── Helpers ────────────────────────────────────────────────────────
-
-function fmtAmount(n: unknown): string {
-  const v = Number(n ?? 0);
-  if (v === 0) return '';
-  return v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 // ─── Component ──────────────────────────────────────────────────────
 
@@ -79,7 +74,7 @@ export function BalanceView() {
             <>
               <CheckCircle2 className="h-5 w-5 text-[--success] flex-shrink-0" />
               <span className="text-sm text-[--success]">
-                &#10003; 试算平衡 — 期初借方＝期初贷方；本期借方＝本期贷方；期末借方＝期末贷方（本期发生额 {fmtAmount(totalCurrentDebit)} 元）
+                &#10003; 试算平衡 — 期初借方＝期初贷方；本期借方＝本期贷方；期末借方＝期末贷方（本期发生额 {fmtMoney(totalCurrentDebit, { emptyIfZero: true, prefix: '' })} 元）
               </span>
             </>
           ) : rows.length > 0 ? (
@@ -134,24 +129,24 @@ export function BalanceView() {
                     <TableCell className="font-mono">{row.subject?.code ?? '—'}</TableCell>
                     <TableCell>{row.subject?.name ?? '—'}</TableCell>
                     <TableCell className="text-center">{row.endingDirection ?? '—'}</TableCell>
-                    <TableCell className="text-right font-mono">{fmtAmount(row.openingDebit)}</TableCell>
-                    <TableCell className="text-right font-mono">{fmtAmount(row.openingCredit)}</TableCell>
-                    <TableCell className="text-right font-mono">{fmtAmount(row.currentDebit)}</TableCell>
-                    <TableCell className="text-right font-mono">{fmtAmount(row.currentCredit)}</TableCell>
-                    <TableCell className="text-right font-mono">{fmtAmount(row.endingDebit)}</TableCell>
-                    <TableCell className="text-right font-mono">{fmtAmount(row.endingCredit)}</TableCell>
+                    <TableCell className="text-right font-mono">{fmtMoney(row.openingDebit, { emptyIfZero: true, prefix: '' })}</TableCell>
+                    <TableCell className="text-right font-mono">{fmtMoney(row.openingCredit, { emptyIfZero: true, prefix: '' })}</TableCell>
+                    <TableCell className="text-right font-mono">{fmtMoney(row.currentDebit, { emptyIfZero: true, prefix: '' })}</TableCell>
+                    <TableCell className="text-right font-mono">{fmtMoney(row.currentCredit, { emptyIfZero: true, prefix: '' })}</TableCell>
+                    <TableCell className="text-right font-mono">{fmtMoney(row.endingDebit, { emptyIfZero: true, prefix: '' })}</TableCell>
+                    <TableCell className="text-right font-mono">{fmtMoney(row.endingCredit, { emptyIfZero: true, prefix: '' })}</TableCell>
                   </TableRow>
                 ))}
                 {/* Totals row */}
                 <TableRow className="text-xs font-medium bg-muted/30">
                   <TableCell colSpan={2}>合 计</TableCell>
                   <TableCell className="text-center">—</TableCell>
-                  <TableCell className="text-right font-mono">{fmtAmount(totalOpeningDebit)}</TableCell>
-                  <TableCell className="text-right font-mono">{fmtAmount(totalOpeningCredit)}</TableCell>
-                  <TableCell className="text-right font-mono">{fmtAmount(totalCurrentDebit)}</TableCell>
-                  <TableCell className="text-right font-mono">{fmtAmount(totalCurrentCredit)}</TableCell>
-                  <TableCell className="text-right font-mono">{fmtAmount(totalEndingDebit)}</TableCell>
-                  <TableCell className="text-right font-mono">{fmtAmount(totalEndingCredit)}</TableCell>
+                  <TableCell className="text-right font-mono">{fmtMoney(totalOpeningDebit, { emptyIfZero: true, prefix: '' })}</TableCell>
+                  <TableCell className="text-right font-mono">{fmtMoney(totalOpeningCredit, { emptyIfZero: true, prefix: '' })}</TableCell>
+                  <TableCell className="text-right font-mono">{fmtMoney(totalCurrentDebit, { emptyIfZero: true, prefix: '' })}</TableCell>
+                  <TableCell className="text-right font-mono">{fmtMoney(totalCurrentCredit, { emptyIfZero: true, prefix: '' })}</TableCell>
+                  <TableCell className="text-right font-mono">{fmtMoney(totalEndingDebit, { emptyIfZero: true, prefix: '' })}</TableCell>
+                  <TableCell className="text-right font-mono">{fmtMoney(totalEndingCredit, { emptyIfZero: true, prefix: '' })}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>

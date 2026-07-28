@@ -90,7 +90,7 @@
 |:---|:---|:---|
 | Node.js | **>= 20.9.0**（推荐 22 LTS） | Next.js 16 硬性要求 |
 | MySQL | **8.0+** | 演示数据含 utf8mb4 中文，需 8.0+ |
-| `mysql` CLI | 任意 | `npm run db:seed` 灌全量数据时需要；缺失则仅灌基础表 |
+| `mysql` CLI | 任意 | `npm run db:import` 导入数据库时需要 |
 | npm | 随 Node 附带 | — |
 
 ### 方式一：本地开发部署（5 步）
@@ -106,50 +106,42 @@ cp .env.example .env
 #   NEXTAUTH_SECRET="<随机串>"      # 用 `openssl rand -base64 32` 生成
 #   NEXTAUTH_URL="http://localhost:3000"
 
-# 3. 创建数据库（Prisma 不会自动建「库」，只建「表」）
-mysql -u root -p -e "CREATE DATABASE finance_cloud CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+# 3. 导入数据库（建库 + 全量表结构 + 全量数据，一条命令搞定）
+npm run db:import           # 读取 .env 的 DATABASE_URL，自动建库并灌入 scripts/finance_cloud_dump.sql
 
-# 4. 建表 + 灌数据
-npx prisma db push          # 按 schema.prisma 自动建全部 65 张表
-npm run db:seed             # 灌基础表 + 贝特瑞 2025H1 全量数据（需 mysql CLI）
-
-# 5. 启动开发服务器
+# 4. 启动开发服务器
 npm run dev
 # → http://localhost:3000
 ```
 
 打开浏览器访问 `http://localhost:3000`，用上方「演示账号」登录即可。
 
-> 其它数据库脚本：`npm run db:generate`（生成 Prisma Client）/ `db:studio`（可视化）/ `db:reset`（重置）。
+> 其它数据库脚本：`npm run db:generate`（生成 Prisma Client）/ `db:studio`（可视化浏览数据）。
 
 ### 方式二：生产环境部署
 
 ```bash
 npm install
 cp .env.example .env        # 生产环境 NEXTAUTH_URL 改为真实域名，务必设置强随机 NEXTAUTH_SECRET
-mysql -u root -p -e "CREATE DATABASE finance_cloud CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-npx prisma db push
-npm run db:seed
+npm run db:import           # 读取 .env 的 DATABASE_URL，自动建库并灌入全量数据
 npm run build               # 生产构建
 npm run start              # 启动生产服务（默认 3000 端口）
 ```
 
 建议通过 Nginx / Caddy 等反向代理对外暴露，并启用 HTTPS。注意 `NEXTAUTH_URL` 必须与访问域名完全一致，否则登录回调会失败。
 
-### 为什么用 `db push` 而不是 `db:migrate`
+### 数据库从哪来（dump 来源）
 
-本项目**未使用 Prisma Migrate**——仓库里没有 `prisma/migrations/` 目录，表结构由 `schema.prisma` 直接 push 到数据库。因此：
+数据库表结构 + 全量数据已固化为一份自包含的 dump 文件 **`scripts/finance_cloud_dump.sql`**（由 `mysqldump` 从本地 `finance_cloud` 库导出，64 张表全量）。clone 后只需 `npm run db:import` 即可建库灌数，无需 Prisma 建表、无需 Node 灌种子。
 
-- ✅ 用 `npx prisma db push` 建表；
-- ❌ **不要运行 `npm run db:migrate` 或 `db:reset`**，会因缺少迁移历史而报错。
-
-若未来要启用 Migrate，先执行 `npx prisma migrate dev --init` 生成首版迁移，再改用 `migrate deploy`。
+- `prisma/schema.prisma` 仍保留，仅用于 **生成 Prisma Client 类型**（`npm run db:generate`），不再负责建库。
+- 若要修改表结构：本地改完 `schema.prisma` 后，用 `npx prisma db push` 应用到本地库，再重新生成 dump 并提交，保证两者同步。
 
 ### 数据说明与开源注意事项
 
-- **演示数据可一键重建**：`scripts/seed-berry-2025h1.sql` 与 `prisma/seed.ts` 均已提交。别人 clone 后执行 `npm run db:seed` 即可得到与你本地一致的贝特瑞 2025H1 全量数据（无需你导出数据库）。
+- **数据库随仓库提供**：`scripts/finance_cloud_dump.sql` 已提交，包含 64 张表的完整结构与全量演示数据。别人 clone 后执行 `npm run db:import` 即可得到与你本地一致的数据库（无需你单独导出）。
 - **`.env` 不会泄露**：数据库连接串与密码已被 `.gitignore` 忽略，不会进入仓库。
-- ⚠️ **业务数据会随仓库公开**：`seed-berry-2025h1.sql` 内含贝特瑞 2025H1 真实量级业务数据（收入约 78 亿）。若仓库为 **public**，任何人都能看到这些数据。如介意，请：
+- ⚠️ **业务数据会随仓库公开**：dump 内含贝特瑞 2025H1 真实量级业务数据（收入约 78 亿）。若仓库为 **public**，任何人都能看到这些数据。如介意，请：
   1. 将仓库设为 **private**；或
   2. 用脱敏 / 纯虚构数据替换该 SQL 后再提交。
 
@@ -160,10 +152,10 @@ npm run start              # 启动生产服务（默认 3000 端口）
 项目为**全栈 TypeScript**——前后端共用一套类型，通过 tRPC 实现端到端类型安全：
 
 - **API（tRPC v11）** — 后端 procedure 定义在 `lib/trpc-server.ts`，前端经 `lib/trpc-client.ts` 调用；入参用 `zod` 校验、传输用 `superjson` 序列化。
-- **ORM 与数据库** — `Prisma 5` 连接 **MySQL 8.0+**，`prisma/schema.prisma` 定义 65 张业务表，采用 `relationMode=prisma`（逻辑关联、无物理外键）。
+- **ORM 与数据库** — `Prisma 5` 连接 **MySQL 8.0+**；`prisma/schema.prisma` 定义 64 张业务表（用于生成 Prisma Client），采用 `relationMode=prisma`（逻辑关联、无物理外键）。实际表结构与全量数据见 `scripts/finance_cloud_dump.sql`。
 - **多租户** — `lib/tenant.ts` 的 `tenantWhere(companyId)` 为所有查询注入 `company_id` 过滤，演示数据 `company_id = 1`。
 - **认证** — `NextAuth v5（Auth.js）` + `@auth/prisma-adapter`，配置见 `server/auth.ts`（当前 demo 模式跳过密码校验）。
-- **演示数据** — `prisma/seed.ts` 灌基础表（含三个演示账号），`scripts/seed-berry-2025h1.sql` 灌入贝特瑞 2025H1 全量数据；完整初始化见上方「部署教程」。
+- **演示数据** — 随数据库 dump（`scripts/finance_cloud_dump.sql`）一并导入，含三个演示账号与贝特瑞 2025H1 全量数据；初始化见上方「部署教程」。
 
 ---
 
@@ -190,13 +182,12 @@ cwy2/
 │   ├── tenant.ts           # 多租户查询（company_id 过滤）
 │   └── kpi.ts / risk.ts    # KPI 业务逻辑 / 风险分析
 ├── prisma/
-│   ├── schema.prisma       # 数据库表结构（65 张业务表）
-│   ├── seed.ts             # 基础数据灌库脚本（含演示账号）
-│   └── *.sql               # 全量演示数据（贝特瑞 2025H1）
+│   └── schema.prisma       # 数据库表结构定义（64 张业务表，用于生成 Prisma Client）
 ├── server/
 │   └── auth.ts             # NextAuth 配置（Auth.js v5，demo 模式）
 ├── scripts/
-│   └── seed-berry-2025h1.sql  # 全量 seed SQL
+│   ├── finance_cloud_dump.sql  # 全量数据库 dump（表结构 + 数据，clone 后一键导入）
+│   └── import-db.mjs          # 一键导入脚本（npm run db:import）
 ├── public/                  # 静态资源
 ├── .env / .env.example      # 环境变量（DATABASE_URL 等，.env 不提交）
 ├── CLAUDE.md                # Claude Code 约束文件

@@ -37,3 +37,7 @@ next-env.d.ts
 
 # local agent workspace memory (not project source)
 .workbuddy/
+
+# logs (Typora hook etc.)
+Typora_Hook_Log.txt
+docs/Typora_Hook_Log.txt

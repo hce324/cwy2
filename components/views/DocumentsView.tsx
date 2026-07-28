@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Plus, Search, MoreVertical, Eye, ScanLine, FileText, Link2, CheckCheck, PencilLine } from 'lucide-react';
 import { toast } from 'sonner';
+import { fmtAmount, fmtDate } from '@/lib/format';
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -55,15 +56,6 @@ interface SrcVoucher {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────
-
-function fmtAmount(n: unknown): string {
-  return `¥${Number(n ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`;
-}
-
-function fmtDate(d: unknown): string {
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  return String(d ?? '').slice(0, 10);
-}
 
 function statusInfo(status?: string | null): { text: string; cls: string } {
   if (status === '已制证') return { text: '已制证', cls: 'text-success' };

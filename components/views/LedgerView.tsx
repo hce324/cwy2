@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc-client';
 import { cn } from '@/lib/utils';
+import { fmtDate, fmtAmount, fmtMoney } from '@/lib/format';
 
 type BookType = 'journal' | 'classify' | 'memo';
 
@@ -27,21 +28,6 @@ interface LedgerColumn {
 
 function fmtVoucherNo(word: string, number: number): string {
   return `${word}字${number}号`;
-}
-
-function fmtDate(d: unknown): string {
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  return String(d ?? '').slice(0, 10);
-}
-
-function fmtAmount(n: unknown): string {
-  const v = Number(n ?? 0);
-  if (v === 0) return '';
-  return v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtAmountAlways(n: unknown): string {
-  return Number(n ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // ─── Column definitions per book type ─────────────────────────────────
@@ -369,8 +355,8 @@ export function LedgerView() {
                 <div className="mt-2 pt-2 border-t text-xs text-muted-foreground flex flex-wrap items-center justify-end gap-6 px-4">
                   {(bookType === 'journal' || bookType === 'classify') && (
                     <>
-                      <span>借方合计：{fmtAmountAlways(totalDebit)}</span>
-                      <span>贷方合计：{fmtAmountAlways(totalCredit)}</span>
+                      <span>借方合计：{fmtMoney(totalDebit)}</span>
+                      <span>贷方合计：{fmtMoney(totalCredit)}</span>
                     </>
                   )}
                   <span>共 {total} 条记录</span>
