@@ -22,7 +22,7 @@ import { hrAttendance, hrActiveCount } from '@/lib/hr-data';
 function HrTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-1.5 text-xs shadow-lg min-w-[150px]">
+    <div className="rounded-lg border border-border bg-popover px-3 py-1.5 text-xs elevation-2 min-w-[150px]">
       {label != null && (
         <p className="mb-1 font-medium text-foreground border-b border-border pb-1">{label}</p>
       )}

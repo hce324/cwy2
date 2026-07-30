@@ -50,9 +50,9 @@ export function HrPageHeader({
 }) {
   return (
     <div className={cn('mx-auto w-full', maxWidth)}>
-      <h1 className="text-2xl font-heading font-bold text-foreground">{title}</h1>
+      <h1 className="page-title">{title}</h1>
       {subtitle && (
-        <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
+        <p className="page-subtitle">{subtitle}</p>
       )}
       {description && (
         <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
@@ -139,7 +139,7 @@ export function HrBadge({
   }
   return (
     <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-white"
+      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-primary-foreground"
       style={{ backgroundColor: color }}
     >
       {children}

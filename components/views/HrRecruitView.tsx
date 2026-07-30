@@ -37,7 +37,7 @@ export function HrRecruitView() {
               <div className="w-20 text-right text-xs text-muted-foreground shrink-0">{s.label}</div>
               <div className="flex-1">
                 <div
-                  className="mx-auto flex items-center justify-center rounded-lg text-white font-semibold py-3 tabular-nums"
+                  className="mx-auto flex items-center justify-center rounded-lg text-primary-foreground font-semibold py-3 tabular-nums"
                   style={{ width: `${s.width}%`, backgroundColor: s.color }}
                 >
                   {s.value} 人
