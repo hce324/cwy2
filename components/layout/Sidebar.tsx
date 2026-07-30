@@ -161,15 +161,15 @@ export function Sidebar() {
         sidebarCollapsed && 'justify-center px-2'
       )}>
         <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-sm">
-          <span className="text-white font-bold text-base">财</span>
+          <span className="text-white font-bold text-base">企</span>
         </div>
         {!sidebarCollapsed && (
           <div className="min-w-0">
             <div className="text-base font-bold text-sidebar-foreground leading-tight font-heading tracking-tight">
-              财务云
+              企管云
             </div>
             <div className="text-[11px] text-muted-foreground leading-tight mt-0.5">
-              财务管理协同平台
+              企业财务与人事协同平台
             </div>
           </div>
         )}

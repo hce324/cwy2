@@ -17,7 +17,7 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { HrPageHeader, HrMetricCard, HrProgress, HrTodoItem, HrAiPanel } from './hr-ui';
-import { hrAttendance } from '@/lib/hr-data';
+import { hrAttendance, hrActiveCount } from '@/lib/hr-data';
 
 function HrTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
@@ -48,7 +48,7 @@ export function HrAttendanceView() {
       <HrPageHeader
         title="考勤管理"
         subtitle="2026年6月 · 月度考勤汇总"
-        description={`出勤率${latest.rate}% · 迟到${latest.late}次 · 请假${latest.leave}次 · 加班${latest.overtime}小时`}
+        description={`出勤率${latest.rate}% · 迟到${latest.late}次 · 请假${latest.leave}次 · 加班${latest.overtime}小时（人均${(latest.overtime / hrActiveCount).toFixed(1)}h）`}
       />
 
       {/* KPI */}
@@ -56,7 +56,7 @@ export function HrAttendanceView() {
         <HrMetricCard label="出勤率" value={`${latest.rate}%`} trend="+0.5%" trendUp color="var(--chart-3)" />
         <HrMetricCard label="迟到人次" value={`${latest.late}`} trend="-17.6%" trendUp={false} color="var(--chart-4)" />
         <HrMetricCard label="请假人次" value={`${latest.leave}`} trend="-18.2%" trendUp={false} color="var(--chart-1)" />
-        <HrMetricCard label="加班总时长" value={`${latest.overtime}h`} trend="-9.0%" trendUp={false} color="var(--chart-2)" />
+        <HrMetricCard label="人均加班时长" value={`${(latest.overtime / hrActiveCount).toFixed(1)}h`} trend="-9.0%" trendUp={false} color="var(--chart-2)" />
       </div>
 
       {/* 趋势 */}
@@ -92,6 +92,7 @@ export function HrAttendanceView() {
                 <th className="px-4 py-2 font-medium text-right">迟到(次)</th>
                 <th className="px-4 py-2 font-medium text-right">请假(次)</th>
                 <th className="px-4 py-2 font-medium text-right">加班(小时)</th>
+                <th className="px-4 py-2 font-medium text-right">人均(小时)</th>
                 <th className="px-4 py-2 font-medium">趋势</th>
               </tr>
             </thead>
@@ -105,6 +106,7 @@ export function HrAttendanceView() {
                     <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{a.late}</td>
                     <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{a.leave}</td>
                     <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{a.overtime}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{(a.overtime / hrActiveCount).toFixed(1)}</td>
                     <td className="px-4 py-2 w-40">
                       <HrProgress value={a.rate} color={c} />
                     </td>

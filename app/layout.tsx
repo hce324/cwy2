@@ -24,8 +24,8 @@ const firaCode = Fira_Code({
 });
 
 export const metadata: Metadata = {
-  title: "财务云 - 财务管理协同平台",
-  description: "财务管理协同平台 — 演示原型",
+  title: "企管云 - 企业财务与人事协同平台",
+  description: "企业财务与人事协同平台 — 演示原型",
 };
 
 export default function RootLayout({

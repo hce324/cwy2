@@ -145,20 +145,31 @@ export function AIAssistantFAB() {
     <button
       onClick={() => setAiPanelOpen(!aiPanelOpen)}
       className={cn(
-        'fixed bottom-6 right-6 z-[9999]',
+        'fixed bottom-6 right-6 z-[9999] group',
         'w-14 h-14 rounded-full',
-        'bg-[--primary] text-white',
+        // 毛玻璃质感：降低不透明度 + 背景模糊，更通透清爽
+        'bg-[color-mix(in_srgb,var(--primary)_78%,transparent)]',
+        'backdrop-blur-md',
+        'border border-white/50',
+        'ring-1 ring-white/40',
         'flex items-center justify-center',
-        'shadow-lg hover:opacity-90 active:scale-95',
-        'transition-all duration-200 elevation-3 ripple-container',
+        'shadow-[0_8px_22px_-6px_rgba(100,66,214,0.55)]',
+        'hover:bg-[color-mix(in_srgb,var(--primary)_92%,transparent)]',
+        'hover:shadow-[0_10px_28px_-6px_rgba(100,66,214,0.7)]',
+        'hover:scale-105',
+        'active:scale-95',
+        'transition-all duration-200',
         aiPanelOpen && 'opacity-0 pointer-events-none scale-75'
       )}
       aria-label="AI助手"
       style={{ position: 'fixed' }}
     >
-      <Bot className="h-6 w-6" />
+      {/* 内层实心圆盘：保证白色图标在毛玻璃上清晰可见 */}
+      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[--primary] shadow-sm ring-1 ring-white/30">
+        <Bot className="h-5 w-5 text-white" />
+      </span>
       {/* 模块数量角标 */}
-      <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 rounded-full bg-white text-[--primary] text-[10px] font-bold flex items-center justify-center leading-none">
+      <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-white text-[--primary] text-[10px] font-bold flex items-center justify-center leading-none ring-1 ring-[--primary]/20">
         {badge}
       </span>
     </button>
@@ -310,7 +321,7 @@ export function AIAssistantPanel() {
                 className={cn(
                   'flex-1 text-xs font-medium rounded-md py-1.5 transition-colors',
                   aiModule === 'finance'
-                    ? 'bg-[--primary] text-white shadow-sm'
+                    ? 'bg-white text-black shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -321,7 +332,7 @@ export function AIAssistantPanel() {
                 className={cn(
                   'flex-1 text-xs font-medium rounded-md py-1.5 transition-colors',
                   aiModule === 'hr'
-                    ? 'bg-[--primary] text-white shadow-sm'
+                    ? 'bg-white text-black shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -502,10 +513,10 @@ export function AIAssistantPanel() {
                         </span>
                       )}
                       <div className={cn(
-                        'max-w-[80%] rounded-lg p-2.5 text-sm whitespace-pre-wrap',
+                        'max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm whitespace-pre-wrap break-words leading-relaxed shadow-sm ring-1',
                         msg.role === 'user'
-                          ? 'bg-[--primary] text-white'
-                          : 'bg-muted text-foreground'
+                          ? 'bg-[color-mix(in_srgb,var(--primary)_12%,white)] text-black ring-[color-mix(in_srgb,var(--primary)_25%,transparent)]'
+                          : 'bg-white text-black ring-border'
                       )}>
                         {msg.content}
                       </div>
@@ -519,7 +530,7 @@ export function AIAssistantPanel() {
                       <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[--primary] text-white flex items-center justify-center text-[10px] font-bold">
                         {chatMeta.avatar}
                       </span>
-                      <div className="bg-muted rounded-lg p-2.5 text-sm text-muted-foreground">
+                      <div className="bg-white rounded-2xl px-3.5 py-2.5 text-sm text-black ring-1 ring-border shadow-sm">
                         {chatMeta.loading}
                         <span className="animate-pulse">...</span>
                       </div>

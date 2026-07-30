@@ -15,13 +15,16 @@ const stages = [
   { label: '已发Offer', value: hrRecruitTotals.offered, color: 'var(--chart-3)', width: 48 },
 ];
 
+const totalPlanned = hrRecruitPositions.reduce((s, p) => s + p.planned, 0);
+const completionRate = Math.round((hrRecruitTotals.offered / totalPlanned) * 100);
+
 export function HrRecruitView() {
   return (
     <div className="p-6 space-y-6">
       <HrPageHeader
         title="招聘管理"
         subtitle="在招岗位 · 候选人管道"
-        description={`${hrRecruitPositions.length}个在招岗位（紧急×${hrRecruitTotals.urgent}）· 候选人${hrRecruitTotals.candidates}人 · 面试中${hrRecruitTotals.interviewed}人 · 已发Offer${hrRecruitTotals.offered}人`}
+        description={`${hrRecruitPositions.length}个在招岗位（紧急×${hrRecruitTotals.urgent}）· 候选人${hrRecruitTotals.candidates}人 · 已发Offer${hrRecruitTotals.offered}人 · 招聘完成率${completionRate}%`}
         maxWidth="max-w-[1200px]"
       />
 
@@ -43,6 +46,13 @@ export function HrRecruitView() {
             </div>
           ))}
         </div>
+        <div className="mt-4 pt-3 border-t border-border">
+          <div className="flex items-center justify-between text-sm mb-1">
+            <span className="text-foreground font-medium">整体招聘完成率</span>
+            <span className="tabular-nums text-foreground">{completionRate}%（已发Offer {hrRecruitTotals.offered} / 计划 {totalPlanned}）</span>
+          </div>
+          <HrProgress value={completionRate} color="var(--chart-1)" />
+        </div>
       </div>
 
       {/* 岗位卡片 */}
@@ -59,7 +69,7 @@ export function HrRecruitView() {
             <div className="text-sm text-muted-foreground">
               {p.dept} · 薪资预算 {p.budget}
             </div>
-            <div className="grid grid-cols-3 gap-2 pt-1">
+            <div className="grid grid-cols-4 gap-2 pt-1">
               <div className="text-center">
                 <div className="text-xl font-bold tabular-nums text-foreground">{p.candidates}</div>
                 <div className="text-xs text-muted-foreground">候选人</div>
@@ -72,6 +82,17 @@ export function HrRecruitView() {
                 <div className="text-xl font-bold tabular-nums text-foreground">{p.offered}</div>
                 <div className="text-xs text-muted-foreground">已发Offer</div>
               </div>
+              <div className="text-center">
+                <div className="text-xl font-bold tabular-nums text-foreground">{p.planned}</div>
+                <div className="text-xs text-muted-foreground">计划招聘</div>
+              </div>
+            </div>
+            <div className="pt-2">
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                <span>岗位招聘完成率</span>
+                <span className="tabular-nums">{Math.round((p.offered / p.planned) * 100)}%</span>
+              </div>
+              <HrProgress value={Math.round((p.offered / p.planned) * 100)} color={urgencyColor[p.urgency]} />
             </div>
           </div>
         ))}

@@ -1,6 +1,6 @@
 'use client';
 
-import { HrPageHeader, HrBadge, HrAiPanel } from './hr-ui';
+import { HrPageHeader, HrBadge, HrMetricCard, HrAiPanel } from './hr-ui';
 import {
   hrDepartments,
   hrStaffAll,
@@ -12,6 +12,9 @@ export function HrOrgView() {
   const onsiteCount = (dept: string) =>
     hrStaffAll.filter((s) => s.department === dept).length;
 
+  const totalHeadcount = hrDepartments.reduce((s, d) => s + d.headcount, 0);
+  const overallRate = Math.round((hrActiveCount / totalHeadcount) * 100);
+
   return (
     <div className="p-6 space-y-6">
       <HrPageHeader
@@ -19,6 +22,14 @@ export function HrOrgView() {
         subtitle="组织与编制 · 截至2026年7月"
         description={`澜川数字科技有限公司 · ${hrDepartments.length}个部门 · 在职${hrActiveCount}人`}
       />
+
+      {/* 编制总览 KPI */}
+      <div className="mx-auto w-full max-w-[1100px] grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <HrMetricCard label="部门数" value={`${hrDepartments.length}`} color="var(--chart-1)" />
+        <HrMetricCard label="总编制" value={`${totalHeadcount}人`} color="var(--chart-4)" />
+        <HrMetricCard label="在岗人数" value={`${hrActiveCount}人`} color="var(--chart-3)" />
+        <HrMetricCard label="整体编制达成率" value={`${overallRate}%`} sub={overallRate >= 100 ? '编制已满' : `缺编${totalHeadcount - hrActiveCount}人`} color="var(--chart-2)" />
+      </div>
 
       {/* 部门卡片 */}
       <div className="mx-auto w-full max-w-[1100px] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -39,7 +50,10 @@ export function HrOrgView() {
                 </div>
                 <div className="text-sm text-muted-foreground">负责人：{d.head}</div>
                 <div className="text-sm text-foreground">
-                  在岗{onsite}人 · <span style={{ color: d.color }}>满编率{rate}%</span>
+                  在岗{onsite}人 · <span style={{ color: d.color }}>编制达成率{rate}%</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {onsite < d.headcount ? `缺编${d.headcount - onsite}人` : '编制已满'}
                 </div>
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {positions.map((p) => (

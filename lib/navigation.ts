@@ -130,14 +130,13 @@ export const navMenus: Record<Role, MenuGroup[]> = {
     {
       label: 'HR管理',
       items: [
-        { viewId: 'hr-overview', label: 'HR总览' },
+        { viewId: 'hr-manage', label: '人力资源管理' },
         { viewId: 'hr-org', label: '组织架构' },
         { viewId: 'hr-staff', label: '员工花名册', badge: 121 },
         { viewId: 'hr-attendance', label: '考勤管理' },
         { viewId: 'hr-payroll', label: '薪酬管理' },
         { viewId: 'hr-recruit', label: '招聘管理', badge: 8 },
         { viewId: 'hr-perf', label: '绩效管理' },
-        { viewId: 'hr-manage', label: '上市人力管理' },
       ],
     },
   ],
@@ -256,7 +255,7 @@ export const viewMeta: Record<ViewId, {
   'hr-payroll': { title: '薪酬管理', breadcrumb: '薪酬管理' },
   'hr-recruit': { title: '招聘管理', breadcrumb: '招聘管理' },
   'hr-perf': { title: '绩效管理', breadcrumb: '绩效管理' },
-  'hr-manage': { title: '上市公司人力管理中台', breadcrumb: '上市人力管理' },
+  'hr-manage': { title: '人力资源管理中台', breadcrumb: '人力资源管理' },
 };
 
 // ============================================================
@@ -270,7 +269,7 @@ export function canAccess(viewId: ViewId, role: Role, isPresentationMode: boolea
 }
 
 export function getDefaultView(role: Role): ViewId {
-  if (role === 'HR负责人') return 'hr-overview';
+  if (role === 'HR负责人') return 'hr-manage';
   return 'workbench';
 }
 

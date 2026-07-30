@@ -1,5 +1,5 @@
 // ============================================================
-// HR 模块数据层 (人枢) — 财务云
+// HR 模块数据层 (人枢) — 企管云
 // 数据全部为静态模拟数据；颜色引用 Material/CSS 变量，禁止任意色值。
 // ============================================================
 
@@ -44,6 +44,7 @@ export interface HRRecruitPosition {
   candidates: number;
   interviewed: number;
   offered: number;
+  planned: number; // 计划招聘人数
   budget: string;
 }
 
@@ -65,7 +66,7 @@ export const hrDepartments: HRDepartment[] = [
   { id: 'market', name: '市场部', head: '陈思宇', headcount: 22, color: 'var(--chart-3)' },
   { id: 'sales', name: '销售部', head: '王建国', headcount: 25, color: 'var(--chart-4)' },
   { id: 'finance', name: '财务部', head: '赵雅琴', headcount: 8, color: 'var(--chart-5)' },
-  { id: 'hr_admin', name: '人事行政部', head: '周雨婷', headcount: 12, color: 'var(--chart-2)' },
+  { id: 'hr_admin', name: '人事行政部', head: '周雨婷', headcount: 12, color: 'var(--chart-8)' },
 ];
 
 // ------------------------------------------------------------
@@ -89,21 +90,21 @@ export const hrPayroll: HRPayrollRecord[] = [
   { dept: '市场部', headcount: 22, avgSalary: 16500, color: 'var(--chart-3)' },
   { dept: '销售部', headcount: 25, avgSalary: 19900, color: 'var(--chart-4)' },
   { dept: '财务部', headcount: 8, avgSalary: 16800, color: 'var(--chart-5)' },
-  { dept: '人事行政部', headcount: 12, avgSalary: 13800, color: 'var(--chart-2)' },
+  { dept: '人事行政部', headcount: 12, avgSalary: 13800, color: 'var(--chart-8)' },
 ];
 
 // ------------------------------------------------------------
 // 招聘（8 在招岗位）
 // ------------------------------------------------------------
 export const hrRecruitPositions: HRRecruitPosition[] = [
-  { id: 1, title: '高级后端工程师', dept: '技术部', urgency: '紧急', candidates: 12, interviewed: 5, offered: 2, budget: '25-35K' },
-  { id: 2, title: '数据工程师', dept: '技术部', urgency: '紧急', candidates: 8, interviewed: 3, offered: 1, budget: '22-32K' },
-  { id: 3, title: 'UI/UX设计师', dept: '产品部', urgency: '普通', candidates: 18, interviewed: 7, offered: 0, budget: '18-25K' },
-  { id: 4, title: '大客户经理', dept: '销售部', urgency: '紧急', candidates: 6, interviewed: 2, offered: 0, budget: '20-30K' },
-  { id: 5, title: '品牌策划', dept: '市场部', urgency: '普通', candidates: 15, interviewed: 6, offered: 1, budget: '15-22K' },
-  { id: 6, title: '财务分析师', dept: '财务部', urgency: '普通', candidates: 9, interviewed: 3, offered: 0, budget: '14-20K' },
-  { id: 7, title: '测试工程师', dept: '技术部', urgency: '普通', candidates: 11, interviewed: 4, offered: 1, budget: '16-24K' },
-  { id: 8, title: 'HR专员', dept: '人事行政部', urgency: '低', candidates: 24, interviewed: 9, offered: 2, budget: '10-16K' },
+  { id: 1, title: '高级后端工程师', dept: '技术部', urgency: '紧急', candidates: 12, interviewed: 5, offered: 2, planned: 3, budget: '25-35K' },
+  { id: 2, title: '数据工程师', dept: '技术部', urgency: '紧急', candidates: 8, interviewed: 3, offered: 1, planned: 2, budget: '22-32K' },
+  { id: 3, title: 'UI/UX设计师', dept: '产品部', urgency: '普通', candidates: 18, interviewed: 7, offered: 0, planned: 1, budget: '18-25K' },
+  { id: 4, title: '大客户经理', dept: '销售部', urgency: '紧急', candidates: 6, interviewed: 2, offered: 0, planned: 2, budget: '20-30K' },
+  { id: 5, title: '品牌策划', dept: '市场部', urgency: '普通', candidates: 15, interviewed: 6, offered: 1, planned: 1, budget: '15-22K' },
+  { id: 6, title: '财务分析师', dept: '财务部', urgency: '普通', candidates: 9, interviewed: 3, offered: 0, planned: 1, budget: '14-20K' },
+  { id: 7, title: '测试工程师', dept: '技术部', urgency: '普通', candidates: 11, interviewed: 4, offered: 1, planned: 2, budget: '16-24K' },
+  { id: 8, title: 'HR专员', dept: '人事行政部', urgency: '低', candidates: 24, interviewed: 9, offered: 2, planned: 2, budget: '10-16K' },
 ];
 
 // ------------------------------------------------------------
@@ -203,6 +204,12 @@ export const hrPayrollTotal = hrPayroll.reduce((sum, d) => sum + d.avgSalary * d
 export const hrAvgSalaryWeighted = Math.round(
   hrPayroll.reduce((sum, d) => sum + d.avgSalary * d.headcount, 0) / hrActiveCount
 );
+
+// 营收与人力成本效益（年报口径；与 HrManageView 人力模块人均营收¥186万自洽；数据均为静态模拟）
+export const hrRevenuePerCapita = 186; // 人均营收：万元/人·年
+export const hrRevenueTotal = hrRevenuePerCapita * hrActiveCount; // 年营收：万元
+export const hrAnnualPayroll = (hrPayrollTotal / 10000) * 12; // 年人力成本（薪酬总额年化）：万元
+export const hrCostRevenueRatio = ((hrAnnualPayroll / hrRevenueTotal) * 100).toFixed(1); // 人力成本营收比：%
 
 // 绩效汇总
 export const hrPerfTotal = hrPerformance.reduce(

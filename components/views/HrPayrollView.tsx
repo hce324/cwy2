@@ -23,6 +23,7 @@ import {
   hrPayrollTotal,
   hrAvgSalaryWeighted,
   hrActiveCount,
+  hrCostRevenueRatio,
 } from '@/lib/hr-data';
 
 const DEPT_CHART_COLORS = [
@@ -87,11 +88,12 @@ export function HrPayrollView() {
       />
 
       {/* KPI */}
-      <div className="mx-auto w-full max-w-[1100px] grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="mx-auto w-full max-w-[1100px] grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <HrMetricCard label="薪酬总额" value={`¥${(hrPayrollTotal / 10000).toFixed(2)}万`} trend="+3.2%" trendUp color="var(--chart-1)" />
         <HrMetricCard label="人均月薪" value={`¥${(hrAvgSalaryWeighted / 10000).toFixed(2)}万`} trend="+1.8%" trendUp color="var(--chart-3)" />
         <HrMetricCard label="最高部门" value={topDept.dept} sub={`¥${(topDept.avgSalary / 10000).toFixed(2)}万`} color="var(--chart-5)" />
         <HrMetricCard label="薪酬人数" value={`${hrActiveCount}人`} color="var(--chart-3)" />
+        <HrMetricCard label="人力成本营收比" value={`${hrCostRevenueRatio}%`} sub="薪酬年化÷营收" color="var(--chart-2)" />
       </div>
 
       {/* 对比图 */}

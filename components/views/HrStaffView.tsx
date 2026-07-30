@@ -1,7 +1,7 @@
 'use client';
 
 import { useAppStore } from '@/lib/store';
-import { HrPageHeader, HrBadge, HrAiPanel } from './hr-ui';
+import { HrPageHeader, HrBadge, HrSection, HrProgress, HrAiPanel } from './hr-ui';
 import { hrStaffAll, hrActiveCount, hrDepartments } from '@/lib/hr-data';
 import { Input } from '@/components/ui/input';
 import {
@@ -54,6 +54,22 @@ export function HrStaffView() {
     const y = CURRENT_YEAR - parseInt(entryDate.slice(0, 4), 10);
     return y >= 1 ? `${y}年` : '不足1年';
   };
+
+  // 司龄分布（基于入职日期派生，按年限分桶）
+  const tenureBuckets = (() => {
+    const buckets = [
+      { label: '不足1年', min: 0, max: 1, color: 'var(--chart-5)', count: 0 },
+      { label: '1-3年', min: 1, max: 3, color: 'var(--chart-4)', count: 0 },
+      { label: '3-5年', min: 3, max: 5, color: 'var(--chart-3)', count: 0 },
+      { label: '5年以上', min: 5, max: 99, color: 'var(--chart-1)', count: 0 },
+    ];
+    for (const s of hrStaffAll) {
+      const y = CURRENT_YEAR - parseInt(s.entryDate.slice(0, 4), 10);
+      const b = buckets.find((bk) => y >= bk.min && y < bk.max);
+      if (b) b.count += 1;
+    }
+    return buckets.map((b) => ({ ...b, pct: Math.round((b.count / hrActiveCount) * 100) }));
+  })();
 
   return (
     <div className="p-6 space-y-6">
@@ -143,6 +159,26 @@ export function HrStaffView() {
           </button>
         </div>
       </div>
+
+      {/* 司龄分布 */}
+      <HrSection
+        title="司龄分布"
+        description="按入职年限分组的在职员工构成（基于入职日期派生）"
+        className="mx-auto w-full max-w-[1300px]"
+        contentClassName="space-y-3"
+      >
+        {tenureBuckets.map((b) => (
+          <div key={b.label} className="flex items-center gap-3">
+            <div className="w-20 shrink-0 text-sm text-foreground">{b.label}</div>
+            <div className="flex-1">
+              <HrProgress value={b.pct} color={b.color} />
+            </div>
+            <div className="w-28 shrink-0 text-right text-sm tabular-nums text-muted-foreground">
+              {b.count}人 · {b.pct}%
+            </div>
+          </div>
+        ))}
+      </HrSection>
 
       <HrAiPanel viewId="hr-staff" className="mx-auto w-full max-w-[1300px]" />
     </div>

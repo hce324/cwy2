@@ -102,10 +102,15 @@
 
   /* Chart colors */
   --chart-1: #6442D6;
-  --chart-2: #C8B3FD;
+  --chart-2: #2563EB;
   --chart-3: #16A34A;
   --chart-4: #D97706;
   --chart-5: #DC2626;
+  --chart-6: #EAB308;
+  --chart-7: #0EA5E9;
+  --chart-8: #DB2777;
+  --chart-9: #7C3AED;
+  --chart-10: #0D9488;
 
   /* Trend colors — semantically separated from danger/warning */
   --trend-up: #16A34A;
@@ -152,10 +157,15 @@
   --sidebar-ring: #8B7CF6;
 
   --chart-1: #8B7CF6;
-  --chart-2: #C8B3FD;
+  --chart-2: #60A5FA;
   --chart-3: #22C55E;
   --chart-4: #F59E0B;
   --chart-5: #EF4444;
+  --chart-6: #FACC15;
+  --chart-7: #22D3EE;
+  --chart-8: #F472B6;
+  --chart-9: #A78BFA;
+  --chart-10: #2DD4BF;
 
   --trend-up: #22C55E;
   --trend-down: #EF4444;
