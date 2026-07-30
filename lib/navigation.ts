@@ -48,6 +48,19 @@ export const navMenus: Record<Role, MenuGroup[]> = {
         { viewId: 'risk', label: '风险与异常', badge: 13 },
       ],
     },
+    {
+      label: '人力资源管理',
+      items: [
+        { viewId: 'hr-manage', label: '人力资源管理中台' },
+        { viewId: 'hr-org', label: '组织架构' },
+        { viewId: 'hr-staff', label: '员工花名册', badge: 121 },
+        { viewId: 'hr-attendance', label: '考勤管理' },
+        { viewId: 'hr-payroll', label: '薪酬管理' },
+        { viewId: 'hr-recruit', label: '招聘管理', badge: 8 },
+        { viewId: 'hr-perf', label: '绩效管理' },
+        { viewId: 'hr-overview', label: 'HR管理总览' },
+      ],
+    },
   ],
   '财务专员': [
     {
@@ -126,6 +139,21 @@ export const navMenus: Record<Role, MenuGroup[]> = {
       ],
     },
   ],
+  'HR负责人': [
+    {
+      label: 'HR管理',
+      items: [
+        { viewId: 'hr-manage', label: '人力资源管理' },
+        { viewId: 'hr-org', label: '组织架构' },
+        { viewId: 'hr-staff', label: '员工花名册', badge: 121 },
+        { viewId: 'hr-attendance', label: '考勤管理' },
+        { viewId: 'hr-payroll', label: '薪酬管理' },
+        { viewId: 'hr-recruit', label: '招聘管理', badge: 8 },
+        { viewId: 'hr-perf', label: '绩效管理' },
+        { viewId: 'hr-overview', label: 'HR管理总览' },
+      ],
+    },
+  ],
 };
 
 // Presentation mode extra menu (appended for all roles)
@@ -178,6 +206,15 @@ export const viewPermissions: Record<ViewId, Role[]> = {
   'hz-closing': ['财务专员'],
   'hz-tax': ['财务负责人', '财务专员'],
   'hz-settings': ['财务负责人'],
+  // HR module
+  'hr-overview': ['HR负责人', '财务负责人'],
+  'hr-org': ['HR负责人', '财务负责人'],
+  'hr-staff': ['HR负责人', '财务负责人'],
+  'hr-attendance': ['HR负责人', '财务负责人'],
+  'hr-payroll': ['HR负责人', '财务负责人'],
+  'hr-recruit': ['HR负责人', '财务负责人'],
+  'hr-perf': ['HR负责人', '财务负责人'],
+  'hr-manage': ['HR负责人', '财务负责人'],
 };
 
 // ============================================================
@@ -224,6 +261,15 @@ export const viewMeta: Record<ViewId, {
   'hz-closing': { title: '期末结转', enLabel: 'PERIOD END', breadcrumb: '期末结转' },
   'hz-tax': { title: '纳税申报', enLabel: 'TAX FILING', breadcrumb: '纳税申报' },
   'hz-settings': { title: '系统连接', enLabel: 'INTEGRATIONS', breadcrumb: '系统连接' },
+  // HR module
+  'hr-overview': { title: 'HR管理总览', breadcrumb: 'HR总览' },
+  'hr-org': { title: '组织架构', breadcrumb: '组织架构' },
+  'hr-staff': { title: '员工花名册', breadcrumb: '员工花名册' },
+  'hr-attendance': { title: '考勤管理', breadcrumb: '考勤管理' },
+  'hr-payroll': { title: '薪酬管理', breadcrumb: '薪酬管理' },
+  'hr-recruit': { title: '招聘管理', breadcrumb: '招聘管理' },
+  'hr-perf': { title: '绩效管理', breadcrumb: '绩效管理' },
+  'hr-manage': { title: '人力资源管理中台', breadcrumb: '人力资源管理' },
 };
 
 // ============================================================
@@ -237,6 +283,7 @@ export function canAccess(viewId: ViewId, role: Role, isPresentationMode: boolea
 }
 
 export function getDefaultView(role: Role): ViewId {
+  if (role === 'HR负责人') return 'hr-manage';
   return 'workbench';
 }
 
