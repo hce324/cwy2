@@ -2,7 +2,7 @@
 // Core Types for 财务云 - 财务管理协同平台
 // ============================================================
 
-export type Role = '财务负责人' | '财务专员' | '出纳';
+export type Role = '财务负责人' | '财务专员' | '出纳' | 'HR负责人';
 
 export type ViewId =
   // Dashboard pages
@@ -16,7 +16,10 @@ export type ViewId =
   | 'hz-reconcile' | 'hz-bankrecon' | 'hz-ledger' | 'hz-balance'
   | 'subjects' | 'opening-balance' | 'business-entry'
   | 'asset-management' | 'inventory-management'
-  | 'accounting-check' | 'hz-reports' | 'hz-closing' | 'hz-tax' | 'hz-settings';
+  | 'accounting-check' | 'hz-reports' | 'hz-closing' | 'hz-tax' | 'hz-settings'
+  // HR module
+  | 'hr-overview' | 'hr-org' | 'hr-staff' | 'hr-attendance' | 'hr-payroll'
+  | 'hr-recruit' | 'hr-perf' | 'hr-manage';
 
 export interface MenuGroup {
   label: string;

@@ -48,6 +48,14 @@ const iconMap: Record<string, React.ReactNode> = {
   'hz-closing': <ClipboardCheck className="h-4 w-4" />,
   'hz-tax': <Receipt className="h-4 w-4" />,
   'hz-settings': <Settings className="h-4 w-4" />,
+  'hr-overview': <Users className="h-4 w-4" />,
+  'hr-org': <Building2 className="h-4 w-4" />,
+  'hr-staff': <Users className="h-4 w-4" />,
+  'hr-attendance': <ClipboardCheck className="h-4 w-4" />,
+  'hr-payroll': <Wallet className="h-4 w-4" />,
+  'hr-recruit': <Users className="h-4 w-4" />,
+  'hr-perf': <TrendingUp className="h-4 w-4" />,
+  'hr-manage': <Users className="h-4 w-4" />,
 };
 
 function NavGroup({

@@ -29,6 +29,14 @@ interface AppState {
   // Month-end task completion
   closingTasks: Record<string, boolean>;
   toggleClosingTask: (id: string) => void;
+
+  // HR module UI state
+  hrStaffSearch: string;
+  hrStaffDeptFilter: string;
+  hrStaffPage: number;
+  setHrStaffSearch: (v: string) => void;
+  setHrStaffDeptFilter: (v: string) => void;
+  setHrStaffPage: (v: number) => void;
 }
 
 export interface ChatMessage {
@@ -46,6 +54,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   aiPanelOpen: false,
   aiPanelTab: 'diagnosis',
   aiUnreadCount: 6,
+
+  hrStaffSearch: '',
+  hrStaffDeptFilter: '全部部门',
+  hrStaffPage: 1,
 
   setRole: (role: Role) => {
     const state = get();
@@ -99,4 +111,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleClosingTask: (id: string) => set(s => ({
     closingTasks: { ...s.closingTasks, [id]: !s.closingTasks[id] },
   })),
+
+  setHrStaffSearch: (v: string) => set({ hrStaffSearch: v, hrStaffPage: 1 }),
+  setHrStaffDeptFilter: (v: string) => set({ hrStaffDeptFilter: v, hrStaffPage: 1 }),
+  setHrStaffPage: (v: number) => set({ hrStaffPage: v }),
 }));
