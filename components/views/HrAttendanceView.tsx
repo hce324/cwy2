@@ -16,25 +16,16 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card';
-import { HrPageHeader, HrMetricCard, HrProgress, HrTodoItem, HrAiPanel } from './hr-ui';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { HrPageHeader, HrMetricCard, HrProgress, HrTodoItem, HrAiPanel, HrTooltip } from './hr-ui';
 import { hrAttendance, hrActiveCount } from '@/lib/hr-data';
-
-function HrTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-1.5 text-xs elevation-2 min-w-[150px]">
-      {label != null && (
-        <p className="mb-1 font-medium text-foreground border-b border-border pb-1">{label}</p>
-      )}
-      {payload.map((entry: any, i: number) => (
-        <div key={i} className="flex justify-between gap-4 tabular-nums">
-          <span style={{ color: entry.color }}>{entry.name}</span>
-          <span className="font-medium text-foreground text-right">{entry.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 const rateColor = (rate: number) =>
   rate >= 97 ? 'var(--chart-3)' : rate >= 95 ? 'var(--chart-4)' : 'var(--chart-5)';
@@ -60,7 +51,7 @@ export function HrAttendanceView() {
       </div>
 
       {/* 趋势 */}
-      <Card className="elevation-1 card-hover mx-auto w-full max-w-[1100px]">
+      <Card className="elevation-1 card-hover ripple-container mx-auto w-full max-w-[1100px]">
         <CardHeader>
           <CardTitle>上半年考勤趋势</CardTitle>
           <CardDescription>月度出勤率（%）</CardDescription>
@@ -79,47 +70,47 @@ export function HrAttendanceView() {
       </Card>
 
       {/* 月度明细 */}
-      <Card className="elevation-1 card-hover mx-auto w-full max-w-[1100px]">
+      <Card className="elevation-1 card-hover ripple-container mx-auto w-full max-w-[1100px]">
         <CardHeader>
           <CardTitle>月度明细</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-muted-foreground">
-                <th className="px-4 py-2 font-medium">月份</th>
-                <th className="px-4 py-2 font-medium">出勤率</th>
-                <th className="px-4 py-2 font-medium text-right">迟到(次)</th>
-                <th className="px-4 py-2 font-medium text-right">请假(次)</th>
-                <th className="px-4 py-2 font-medium text-right">加班(小时)</th>
-                <th className="px-4 py-2 font-medium text-right">人均(小时)</th>
-                <th className="px-4 py-2 font-medium">趋势</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b border-border text-left text-muted-foreground">
+                <TableHead className="px-4 py-2 font-medium">月份</TableHead>
+                <TableHead className="px-4 py-2 font-medium">出勤率</TableHead>
+                <TableHead className="px-4 py-2 font-medium text-right">迟到(次)</TableHead>
+                <TableHead className="px-4 py-2 font-medium text-right">请假(次)</TableHead>
+                <TableHead className="px-4 py-2 font-medium text-right">加班(小时)</TableHead>
+                <TableHead className="px-4 py-2 font-medium text-right">人均(小时)</TableHead>
+                <TableHead className="px-4 py-2 font-medium">趋势</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {hrAttendance.map((a) => {
                 const c = rateColor(a.rate);
                 return (
-                  <tr key={a.month} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2 text-foreground">{a.month}</td>
-                    <td className="px-4 py-2 font-medium tabular-nums" style={{ color: c }}>{a.rate}%</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{a.late}</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{a.leave}</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{a.overtime}</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{(a.overtime / hrActiveCount).toFixed(1)}</td>
-                    <td className="px-4 py-2 w-40">
+                  <TableRow key={a.month} className="border-b border-border last:border-0">
+                    <TableCell className="px-4 py-2 text-foreground">{a.month}</TableCell>
+                    <TableCell className="px-4 py-2 font-medium tabular-nums" style={{ color: c }}>{a.rate}%</TableCell>
+                    <TableCell className="px-4 py-2 text-right tabular-nums text-muted-foreground">{a.late}</TableCell>
+                    <TableCell className="px-4 py-2 text-right tabular-nums text-muted-foreground">{a.leave}</TableCell>
+                    <TableCell className="px-4 py-2 text-right tabular-nums text-muted-foreground">{a.overtime}</TableCell>
+                    <TableCell className="px-4 py-2 text-right tabular-nums text-muted-foreground">{(a.overtime / hrActiveCount).toFixed(1)}</TableCell>
+                    <TableCell className="px-4 py-2 w-40">
                       <HrProgress value={a.rate} color={c} />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 
       {/* 异常提醒 */}
-      <Card className="elevation-1 card-hover mx-auto w-full max-w-[1100px]">
+      <Card className="elevation-1 card-hover ripple-container mx-auto w-full max-w-[1100px]">
         <CardHeader>
           <CardTitle>考勤异常提醒</CardTitle>
         </CardHeader>

@@ -25,6 +25,7 @@ import {
   HrProgress,
   HrTodoItem,
   HrAiPanel,
+  HrTooltip,
 } from './hr-ui';
 import {
   hrDepartments,
@@ -46,23 +47,6 @@ const DEPT_CHART_COLORS = [
 ];
 
 // 自定义 Tooltip（对齐财务模块 TrendTooltip / CashTooltip 风格）
-function HrTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-1.5 text-xs elevation-2 min-w-[150px]">
-      {label != null && (
-        <p className="mb-1 font-medium text-foreground border-b border-border pb-1">{label}</p>
-      )}
-      {payload.map((entry: any, i: number) => (
-        <div key={i} className="flex justify-between gap-4 tabular-nums">
-          <span style={{ color: entry.color }}>{entry.name}</span>
-          <span className="font-medium text-foreground text-right">{entry.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export function HrOverviewView() {
   const payrollPct = (d: { avgSalary: number; headcount: number }) =>
     (d.avgSalary * d.headcount) / hrPayrollTotal * 100;
@@ -106,7 +90,7 @@ export function HrOverviewView() {
 
       {/* 可视化 */}
       <div className="mx-auto w-full max-w-[1280px] grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="elevation-1 card-hover">
+        <Card className="elevation-1 card-hover ripple-container">
           <CardHeader>
             <CardTitle>部门人员分布</CardTitle>
             <CardDescription>各部门在职人数</CardDescription>
@@ -128,7 +112,7 @@ export function HrOverviewView() {
           </CardContent>
         </Card>
 
-        <Card className="elevation-1 card-hover">
+        <Card className="elevation-1 card-hover ripple-container">
           <CardHeader>
             <CardTitle>月度出勤趋势</CardTitle>
             <CardDescription>上半年月度出勤率（%）</CardDescription>
@@ -149,7 +133,7 @@ export function HrOverviewView() {
 
       {/* 薪酬占比 + 待办 */}
       <div className="mx-auto w-full max-w-[1280px] grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="elevation-1 card-hover">
+        <Card className="elevation-1 card-hover ripple-container">
           <CardHeader>
             <CardTitle>部门薪酬占比</CardTitle>
             <CardDescription>各部门月度薪酬总额占比</CardDescription>
@@ -169,7 +153,7 @@ export function HrOverviewView() {
           </CardContent>
         </Card>
 
-        <Card className="elevation-1 card-hover">
+        <Card className="elevation-1 card-hover ripple-container">
           <CardHeader>
             <CardTitle>HR待办事项</CardTitle>
           </CardHeader>

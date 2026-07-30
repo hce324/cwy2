@@ -17,25 +17,8 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card';
-import { HrPageHeader, HrMetricCard, HrProgress, HrAiPanel } from './hr-ui';
+import { HrPageHeader, HrMetricCard, HrProgress, HrAiPanel, HrTooltip } from './hr-ui';
 import { hrPerformance, hrPerfTotal, hrActiveCount, hrPerfExcellentRate } from '@/lib/hr-data';
-
-function HrTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-1.5 text-xs elevation-2 min-w-[150px]">
-      {label != null && (
-        <p className="mb-1 font-medium text-foreground border-b border-border pb-1">{label}</p>
-      )}
-      {payload.map((entry: any, i: number) => (
-        <div key={i} className="flex justify-between gap-4 tabular-nums">
-          <span style={{ color: entry.color }}>{entry.name}</span>
-          <span className="font-medium text-foreground text-right">{entry.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 const top5 = [
   { rank: 1, name: '张涛', dept: '技术部·高级工程师', level: 'S', desc: '核心系统重构完成，性能提升40%' },
@@ -79,7 +62,7 @@ export function HrPerfView() {
       </div>
 
       {/* 分布图 */}
-      <Card className="elevation-1 card-hover mx-auto w-full max-w-[1100px]">
+      <Card className="elevation-1 card-hover ripple-container mx-auto w-full max-w-[1100px]">
         <CardHeader>
           <CardTitle>各部门绩效分布</CardTitle>
           <CardDescription>按 S/A/B/C/D 等级堆叠（人）</CardDescription>
@@ -104,7 +87,7 @@ export function HrPerfView() {
 
       {/* 分布概览 + TOP5 */}
       <div className="mx-auto w-full max-w-[1100px] grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="elevation-1 card-hover">
+        <Card className="elevation-1 card-hover ripple-container">
           <CardHeader>
             <CardTitle>绩效分布概览</CardTitle>
           </CardHeader>
@@ -123,7 +106,7 @@ export function HrPerfView() {
           </CardContent>
         </Card>
 
-        <Card className="elevation-1 card-hover">
+        <Card className="elevation-1 card-hover ripple-container">
           <CardHeader>
             <CardTitle>Q2 TOP 5 绩优员工</CardTitle>
           </CardHeader>

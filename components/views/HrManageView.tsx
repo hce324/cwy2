@@ -35,6 +35,7 @@ import {
   HrProgress,
   HrBadge,
   HrAiPanel,
+  HrTooltip,
 } from './hr-ui';
 import {
   hrActiveCount,
@@ -79,23 +80,6 @@ const AGE_COLORS = [
 ];
 
 // 自定义 Tooltip（对齐财务模块 TrendTooltip 风格）
-function HrTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-1.5 text-xs elevation-2 min-w-[150px]">
-      {label != null && (
-        <p className="mb-1 font-medium text-foreground border-b border-border pb-1">{label}</p>
-      )}
-      {payload.map((entry: any, i: number) => (
-        <div key={i} className="flex justify-between gap-4 tabular-nums">
-          <span style={{ color: entry.color }}>{entry.name}</span>
-          <span className="font-medium text-foreground text-right">{entry.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 const PERF_COLS = ['优', '中', '待改进'];
 const POT_ROWS = ['高', '中', '基础'];
 
@@ -137,7 +121,7 @@ export function HrManageView() {
 
       {/* 学历结构 + 年龄结构 */}
       <div className="mx-auto w-full max-w-[1280px] grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="elevation-1 card-hover">
+        <Card className="elevation-1 card-hover ripple-container">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <GraduationCap className="h-4 w-4 text-[--chart-3]" /> 学历结构
@@ -161,7 +145,7 @@ export function HrManageView() {
           </CardContent>
         </Card>
 
-        <Card className="elevation-1 card-hover">
+        <Card className="elevation-1 card-hover ripple-container">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Network className="h-4 w-4 text-[--chart-1]" /> 年龄结构
@@ -188,7 +172,7 @@ export function HrManageView() {
 
       {/* 人力成本趋势 + 长期激励计划 */}
       <div className="mx-auto w-full max-w-[1280px] grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="elevation-1 card-hover">
+        <Card className="elevation-1 card-hover ripple-container">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Landmark className="h-4 w-4 text-[--chart-4]" /> 人力成本趋势
@@ -208,7 +192,7 @@ export function HrManageView() {
           </CardContent>
         </Card>
 
-        <Card className="elevation-1 card-hover">
+        <Card className="elevation-1 card-hover ripple-container">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Gift className="h-4 w-4 text-[--chart-1]" /> 长期激励计划
@@ -240,7 +224,7 @@ export function HrManageView() {
 
       {/* 董监高薪酬 + 人才九宫格 */}
       <div className="mx-auto w-full max-w-[1280px] grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="elevation-1 card-hover">
+        <Card className="elevation-1 card-hover ripple-container">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Crown className="h-4 w-4 text-[--chart-5]" /> 董监高薪酬
@@ -281,7 +265,7 @@ export function HrManageView() {
           </CardContent>
         </Card>
 
-        <Card className="elevation-1 card-hover">
+        <Card className="elevation-1 card-hover ripple-container">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Network className="h-4 w-4 text-[--chart-2]" /> 人才九宫格
@@ -333,7 +317,7 @@ export function HrManageView() {
 
       {/* 合规与披露 + 培训发展 */}
       <div className="mx-auto w-full max-w-[1280px] grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="elevation-1 card-hover">
+        <Card className="elevation-1 card-hover ripple-container">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-[--chart-3]" /> 合规与披露
@@ -353,7 +337,7 @@ export function HrManageView() {
           </CardContent>
         </Card>
 
-        <Card className="elevation-1 card-hover">
+        <Card className="elevation-1 card-hover ripple-container">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BookOpen className="h-4 w-4 text-[--chart-2]" /> 培训与人才发展

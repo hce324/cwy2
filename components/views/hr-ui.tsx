@@ -1,12 +1,14 @@
 'use client';
 
 /**
- * hr-ui.tsx — HR 模块共享展示组件
+ * hr-ui.tsx — HR 模块共享展示组件（shadcn/ui 组合封装层）
  *
  * 自定义组件原因（CLAUDE.md / WORKBUDDY.md §允许自定义组件：必须创建时注释原因）：
- * HR 模块 7 个视图大量复用「语义色 KPI 卡 / 语义 badge / 进度条 / 待办块」等组合，
- * shadcn/ui 无等价复合组件；此处仅为对 shadcn Card/Badge 的薄封装，
- * 所有颜色均引用 Material CSS 变量（优先使用 --chart-1..5 财务调色板），未引入任何第三方 UI 库。
+ * HR 模块 7 个视图复用「语义色 KPI 卡 / 语义 badge / 进度条 / 待办块 / AI 洞察卡」等组合布局，
+ * shadcn/ui 无等价复合组件。以下所有导出均为对 shadcn Card / Badge / Progress 的「薄组合封装」
+ * （非新建 UI 原语、未引入任何第三方 UI 库），颜色全部引用 Material CSS 变量
+ * （优先 --chart-1..5 财务调色板）。HrTooltip 为 recharts Tooltip 的共享内容组件，
+ * 抽此一处供 5 个图表视图复用，消除重复。
  */
 import { cn } from '@/lib/utils';
 import { hrAiInsights, hrAiScore, type AiInsightLevel } from '@/lib/hr-data';
@@ -16,6 +18,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import {
   TrendingUp,
   TrendingDown,
@@ -82,7 +86,7 @@ export function HrMetricCard({
   className?: string;
 }) {
   return (
-    <Card className={cn('elevation-1 card-hover', className)}>
+    <Card className={cn('elevation-1 card-hover ripple-container', className)}>
       <CardContent className="p-4">
         <div className="flex items-center gap-2">
           <span
@@ -127,23 +131,17 @@ export function HrBadge({
   children: React.ReactNode;
   soft?: boolean;
 }) {
-  if (soft) {
-    return (
-      <span
-        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-        style={{ backgroundColor: softBg(color), color }}
-      >
-        {children}
-      </span>
-    );
-  }
   return (
-    <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-primary-foreground"
-      style={{ backgroundColor: color }}
+    <Badge
+      variant={soft ? 'secondary' : 'default'}
+      style={
+        soft
+          ? { backgroundColor: softBg(color), color }
+          : { backgroundColor: color, color: 'var(--primary-foreground)' }
+      }
     >
       {children}
-    </span>
+    </Badge>
   );
 }
 
@@ -161,12 +159,11 @@ export function HrProgress({
   warn?: boolean;
   className?: string;
 }) {
+  // 基于 shadcn Progress（base-ui），局部覆盖 --primary 以按语义色着色
+  const style = { '--primary': warn ? 'var(--chart-4)' : color } as React.CSSProperties;
   return (
-    <div className={cn('h-1.5 w-full rounded-full bg-muted overflow-hidden', className)}>
-      <div
-        className={cn('h-full rounded-full transition-all', warn && 'opacity-90')}
-        style={{ width: `${Math.max(0, Math.min(100, value))}%`, backgroundColor: warn ? 'var(--chart-4)' : color }}
-      />
+    <div className={cn('w-full', className)} style={style}>
+      <Progress value={Math.max(0, Math.min(100, value))} />
     </div>
   );
 }
@@ -208,7 +205,7 @@ export function HrSection({
   contentClassName?: string;
 }) {
   return (
-    <Card className={cn('elevation-1', className)}>
+    <Card className={cn('elevation-1 ripple-container', className)}>
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-heading font-semibold text-foreground">
           {title}
@@ -239,7 +236,7 @@ export function HrAiPanel({ viewId, className }: { viewId: string; className?: s
   if (!insights.length) return null;
 
   return (
-    <Card className={cn('elevation-1 card-hover', className)}>
+    <Card className={cn('elevation-1 card-hover ripple-container', className)}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-base font-heading font-semibold text-foreground">
@@ -307,5 +304,25 @@ export function HrAiPanel({ viewId, className }: { viewId: string; className?: s
         })}
       </CardContent>
     </Card>
+  );
+}
+
+// ------------------------------------------------------------
+// 图表 Tooltip（recharts 共享内容组件，供 5 个 HR 图表视图复用）
+// ------------------------------------------------------------
+export function HrTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-border bg-popover px-3 py-1.5 text-xs elevation-2 min-w-[150px]">
+      {label != null && (
+        <p className="mb-1 font-medium text-foreground border-b border-border pb-1">{label}</p>
+      )}
+      {payload.map((entry: any, i: number) => (
+        <div key={i} className="flex justify-between gap-4 tabular-nums">
+          <span style={{ color: entry.color }}>{entry.name}</span>
+          <span className="font-medium text-foreground text-right">{entry.value}</span>
+        </div>
+      ))}
+    </div>
   );
 }

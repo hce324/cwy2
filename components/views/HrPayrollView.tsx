@@ -17,7 +17,15 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card';
-import { HrPageHeader, HrMetricCard, HrProgress, HrAiPanel } from './hr-ui';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { HrPageHeader, HrMetricCard, HrProgress, HrAiPanel, HrTooltip } from './hr-ui';
 import {
   hrPayroll,
   hrPayrollTotal,
@@ -34,23 +42,6 @@ const DEPT_CHART_COLORS = [
   'var(--chart-5)',
   'var(--chart-2)',
 ];
-
-function HrTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-1.5 text-xs elevation-2 min-w-[150px]">
-      {label != null && (
-        <p className="mb-1 font-medium text-foreground border-b border-border pb-1">{label}</p>
-      )}
-      {payload.map((entry: any, i: number) => (
-        <div key={i} className="flex justify-between gap-4 tabular-nums">
-          <span style={{ color: entry.color }}>{entry.name}</span>
-          <span className="font-medium text-foreground text-right">{entry.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 const payrollStructure = [
   { name: '基本工资', pct: 60, color: 'var(--chart-1)' },
@@ -97,7 +88,7 @@ export function HrPayrollView() {
       </div>
 
       {/* 对比图 */}
-      <Card className="elevation-1 card-hover mx-auto w-full max-w-[1100px]">
+      <Card className="elevation-1 card-hover ripple-container mx-auto w-full max-w-[1100px]">
         <CardHeader>
           <CardTitle>各部门薪酬对比</CardTitle>
           <CardDescription>各部门月度薪酬总额（元）</CardDescription>
@@ -120,51 +111,51 @@ export function HrPayrollView() {
       </Card>
 
       {/* 明细表 */}
-      <Card className="elevation-1 card-hover mx-auto w-full max-w-[1100px]">
+      <Card className="elevation-1 card-hover ripple-container mx-auto w-full max-w-[1100px]">
         <CardHeader>
           <CardTitle>部门薪酬明细</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-muted-foreground">
-                <th className="px-4 py-2 font-medium">部门</th>
-                <th className="px-4 py-2 font-medium text-right">人数</th>
-                <th className="px-4 py-2 font-medium text-right">人均月薪</th>
-                <th className="px-4 py-2 font-medium text-right">部门总额</th>
-                <th className="px-4 py-2 font-medium">占比</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b border-border text-left text-muted-foreground">
+                <TableHead className="px-4 py-2 font-medium">部门</TableHead>
+                <TableHead className="px-4 py-2 font-medium text-right">人数</TableHead>
+                <TableHead className="px-4 py-2 font-medium text-right">人均月薪</TableHead>
+                <TableHead className="px-4 py-2 font-medium text-right">部门总额</TableHead>
+                <TableHead className="px-4 py-2 font-medium">占比</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((r) => {
                 const pct = (r.total / hrPayrollTotal) * 100;
                 return (
-                  <tr key={r.dept} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2 text-foreground">{r.dept}</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{r.headcount}</td>
-                    <td className="px-4 py-2 text-right font-mono tabular-nums text-foreground">¥{(r.avg / 10000).toFixed(2)}万</td>
-                    <td className="px-4 py-2 text-right font-mono font-semibold tabular-nums text-foreground">¥{(r.total / 10000).toFixed(1)}万</td>
-                    <td className="px-4 py-2 w-48">
+                  <TableRow key={r.dept} className="border-b border-border last:border-0">
+                    <TableCell className="px-4 py-2 text-foreground">{r.dept}</TableCell>
+                    <TableCell className="px-4 py-2 text-right tabular-nums text-muted-foreground">{r.headcount}</TableCell>
+                    <TableCell className="px-4 py-2 text-right font-mono tabular-nums text-foreground">¥{(r.avg / 10000).toFixed(2)}万</TableCell>
+                    <TableCell className="px-4 py-2 text-right font-mono font-semibold tabular-nums text-foreground">¥{(r.total / 10000).toFixed(1)}万</TableCell>
+                    <TableCell className="px-4 py-2 w-48">
                       <HrProgress value={pct} color={r.color} />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-              <tr className="bg-muted/60">
-                <td className="px-4 py-2 font-semibold text-[--chart-1]">合计</td>
-                <td className="px-4 py-2 text-right tabular-nums text-[--chart-1]">{hrActiveCount}</td>
-                <td className="px-4 py-2 text-right font-mono text-muted-foreground">—</td>
-                <td className="px-4 py-2 text-right font-mono font-bold tabular-nums text-[--chart-1]">¥{(hrPayrollTotal / 10000).toFixed(1)}万</td>
-                <td className="px-4 py-2" />
-              </tr>
-            </tbody>
-          </table>
+              <TableRow className="bg-muted/60">
+                <TableCell className="px-4 py-2 font-semibold text-[--chart-1]">合计</TableCell>
+                <TableCell className="px-4 py-2 text-right tabular-nums text-[--chart-1]">{hrActiveCount}</TableCell>
+                <TableCell className="px-4 py-2 text-right font-mono text-muted-foreground">—</TableCell>
+                <TableCell className="px-4 py-2 text-right font-mono font-bold tabular-nums text-[--chart-1]">¥{(hrPayrollTotal / 10000).toFixed(1)}万</TableCell>
+                <TableCell className="px-4 py-2" />
+              </TableRow>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 
       {/* 结构与变动 */}
       <div className="mx-auto w-full max-w-[1100px] grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="elevation-1 card-hover">
+        <Card className="elevation-1 card-hover ripple-container">
           <CardHeader>
             <CardTitle>薪酬结构</CardTitle>
             <CardDescription>月度薪酬构成占比</CardDescription>
@@ -184,7 +175,7 @@ export function HrPayrollView() {
           </CardContent>
         </Card>
 
-        <Card className="elevation-1 card-hover">
+        <Card className="elevation-1 card-hover ripple-container">
           <CardHeader>
             <CardTitle>本月薪酬变动</CardTitle>
           </CardHeader>

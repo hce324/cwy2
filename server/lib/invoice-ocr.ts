@@ -86,9 +86,42 @@ async function callAliyun(rawFileUrl: string): Promise<RecognizedInvoice> {
   const fileUrl = signUrlForOcr(rawFileUrl);
   const request = new RequestClass({ url: fileUrl });
   const runtime = new TeaModule.RuntimeOptions({});
-  const resp = await client.recognizeInvoiceWithOptions(request, runtime);
+  let resp: any;
+  try {
+    resp = await client.recognizeInvoiceWithOptions(request, runtime);
+  } catch (e: any) {
+    throw new Error(translateOcrError(e));
+  }
 
   return parseAliyunResponse(resp);
+}
+
+// 将阿里云 OCR 原始错误翻译为中文友好提示（避免把英文 stack 直接甩到前端）
+function translateOcrError(e: any): string {
+  const code: string = e?.code || e?.name || '';
+  const msg: string = String(e?.message || e?.data || '');
+  const map: Record<string, string> = {
+    InvalidAccessKeyId: 'OCR 鉴权失败：AccessKey 无效或已被禁用，请检查 INVOICE_OCR_ACCESS_KEY_ID/SECRET。',
+    IncompleteSignature: 'OCR 鉴权失败：签名不完整，请检查密钥配置。',
+    SignatureDoesNotMatch: 'OCR 鉴权失败：密钥不匹配，请检查 INVOICE_OCR_ACCESS_KEY_SECRET。',
+    unmatchedImageType: '该图片不是增值税发票，无法识别。请上传「增值税专用发票」或「增值税普通发票」原图。',
+    IllegalImageUrl: '图片地址无法访问（OCR 拉取超时/被拒）。请确认原图已成功上传到 OSS 后重试。',
+    InvalidImage: '图片内容无效或损坏，请重新上传清晰的发票图片。',
+    ImageNotFoundError: '图片不存在，可能上传未完成。请稍后重试或重新上传。',
+    QuotaExhausted: 'OCR 调用额度已用尽，请在阿里云控制台为账号充值或提升配额。',
+    PurchasedApiNotGranted: '当前账号未开通「增值税发票识别」服务，请到阿里云控制台开通后重试。',
+    Throttling: 'OCR 请求过于频繁，请稍后重试。',
+    ServiceUnavailable: 'OCR 服务暂时不可用，请稍后重试。',
+  };
+  if (map[code]) return map[code];
+  if (/not purchased|not authorized|forbidden/i.test(msg + code)) {
+    return '当前账号未开通「增值税发票识别」服务，请到阿里云控制台开通后重试。';
+  }
+  if (/exists in our records|InvalidAccessKeyId|does not exist/i.test(msg)) {
+    return 'OCR 鉴权失败：AccessKey 无效或不存在，请检查 INVOICE_OCR_ACCESS_KEY_ID/SECRET。';
+  }
+  // 兜底：保留原始文案前 200 字，方便排查
+  return `OCR 识别失败（${code || '未知错误'}）：${msg.slice(0, 200)}`;
 }
 
 // ocr-api20210707 返回结构：
